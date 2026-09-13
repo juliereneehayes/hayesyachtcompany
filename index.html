@@ -44,8 +44,8 @@
         </p>
 
         <div class="hero__actions">
-          <a class="button button--primary" href="tel:+12069105588">Call or Text Will</a>
-          <a class="button button--secondary" href="mailto:hayesyachtcompany@gmail.com">Email Us</a>
+          <a class="button button--primary" href="tel:+12069020064">Call or Text</a>
+          <a class="button button--secondary" href="#service-request">Request Service</a>
         </div>
       </div>
 
@@ -151,17 +151,112 @@
       </section>
 
       <section class="section container" id="contact" aria-labelledby="contact-title">
-        <div class="contact-cta">
-          <h2 id="contact-title">Ready to keep your boat prepared?</h2>
-          <p>Call, text, or email to discuss your vessel and routine support needs.</p>
+        <div class="contact-panel">
+          <div class="contact-panel__intro">
+            <p class="eyebrow">Service inquiry</p>
+            <h2 id="contact-title">Tell us about your boat</h2>
+            <p>
+              Share a few details about your vessel and what you need help with. We'll follow up
+              to discuss availability and next steps.
+            </p>
 
-          <p><strong>Phone:</strong> <a href="tel:+12069105588">(206) 910-5588</a></p>
-          <p><strong>Email:</strong> <a href="mailto:hayesyachtcompany@gmail.com">hayesyachtcompany@gmail.com</a></p>
+            <div class="contact-details" aria-label="Direct contact information">
+              <p><strong>Phone:</strong> <a href="tel:+12069020064">(206) 902-0064</a></p>
+              <p><strong>Email:</strong> <a href="mailto:info@hayesyacht.com">info@hayesyacht.com</a></p>
+            </div>
 
-          <div class="hero__actions">
-            <a class="button button--primary" href="tel:+12069105588">Call or Text Will</a>
-            <a class="button button--secondary" href="mailto:hayesyachtcompany@gmail.com">Email Us</a>
+            <a class="button button--primary" href="tel:+12069020064">Call or Text</a>
           </div>
+
+          <form
+            class="service-form"
+            id="service-request"
+            action="https://formspree.io/f/xoeqowzz"
+            method="POST"
+            aria-describedby="required-note"
+          >
+            <p class="form-note" id="required-note">
+              Fields marked <span class="required-marker" aria-hidden="true">*</span> are required.
+            </p>
+
+            <div class="form-grid">
+              <div class="form-field">
+                <label for="name">Name <span class="required-marker" aria-hidden="true">*</span></label>
+                <input id="name" name="name" type="text" autocomplete="name" required />
+              </div>
+
+              <div class="form-field">
+                <label for="email">Email <span class="required-marker" aria-hidden="true">*</span></label>
+                <input id="email" name="email" type="email" autocomplete="email" required />
+              </div>
+
+              <div class="form-field">
+                <label for="phone">Phone <span class="optional-marker">(optional)</span></label>
+                <input id="phone" name="phone" type="tel" autocomplete="tel" />
+              </div>
+
+              <div class="form-field">
+                <label for="vessel-name">Vessel name <span class="optional-marker">(optional)</span></label>
+                <input id="vessel-name" name="vessel_name" type="text" autocomplete="off" />
+              </div>
+
+              <div class="form-field">
+                <label for="boat-size">Boat size <span class="optional-marker">(optional)</span></label>
+                <input
+                  id="boat-size"
+                  name="boat_size"
+                  type="text"
+                  autocomplete="off"
+                  placeholder="For example, 42 ft"
+                />
+              </div>
+
+              <div class="form-field">
+                <label for="location">Marina / location <span class="optional-marker">(optional)</span></label>
+                <input
+                  id="location"
+                  name="marina_location"
+                  type="text"
+                  autocomplete="street-address"
+                />
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="service-needed">Service needed <span class="optional-marker">(optional)</span></label>
+                <select id="service-needed" name="service_needed">
+                  <option value="">Select a service</option>
+                  <option value="Routine vessel checks / care">Routine vessel checks / care</option>
+                  <option value="Engine or generator exercise">Engine or generator exercise</option>
+                  <option value="Captain services">Captain services</option>
+                  <option value="Delivery or cruising support">Delivery or cruising support</option>
+                  <option value="Pre-trip or post-trip support">Pre-trip or post-trip support</option>
+                  <option value="Exterior or interior care">Exterior or interior care</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div class="form-field form-field--full">
+                <label for="message">
+                  Tell us what you need <span class="required-marker" aria-hidden="true">*</span>
+                </label>
+                <textarea id="message" name="message" rows="6" required></textarea>
+              </div>
+            </div>
+
+            <div class="bot-field" aria-hidden="true">
+              <label for="company-website">Leave this field blank</label>
+              <input
+                id="company-website"
+                name="_gotcha"
+                type="text"
+                tabindex="-1"
+                autocomplete="off"
+              />
+            </div>
+
+            <button class="button button--primary form-submit" type="submit">Send Request</button>
+            <p class="form-privacy">Please do not include passwords, payment details, or other sensitive information.</p>
+          </form>
         </div>
       </section>
     </main>
