@@ -1,6 +1,6 @@
 :root {
-  --navy: #0b1f3a;
-  --navy-light: #163a63;
+  --navy: #012565;
+  --navy-light: #0d3973;
   --white: #ffffff;
   --gray: #f1f4f7;
   --text: #13233a;
@@ -293,7 +293,7 @@ a:focus-visible {
 }
 
 .footer {
-  background: #071427;
+  background: #001842;
   color: var(--white);
   padding: 1.2rem 0;
   text-align: center;
