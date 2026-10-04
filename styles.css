@@ -278,6 +278,76 @@ a:focus-visible {
   margin-top: 1.25rem;
 }
 
+.form-submit:disabled {
+  cursor: wait;
+  filter: none;
+  opacity: 0.65;
+}
+
+.form-status {
+  min-height: 1.6rem;
+  margin-top: 0.75rem;
+  color: #4b5d70;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.form-status:empty {
+  display: none;
+}
+
+.form-status--error {
+  border-left: 4px solid #9b2c2c;
+  border-radius: 0.25rem;
+  background: #fff2f2;
+  color: #7a1f1f;
+  padding: 0.75rem 0.9rem;
+}
+
+.form-status__title {
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.form-success {
+  display: grid;
+  align-content: center;
+  min-height: 24rem;
+  padding: clamp(1rem, 4vw, 2.25rem);
+  text-align: center;
+}
+
+.form-success:focus-visible {
+  outline: 3px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.form-success h3 {
+  margin: 0.5rem 0 1rem;
+  color: var(--navy);
+  font-size: clamp(1.8rem, 4vw, 2.4rem);
+}
+
+.form-success p {
+  max-width: 38rem;
+  margin: 0 auto;
+}
+
+.form-success .eyebrow {
+  color: #84651f;
+}
+
+.form-success__contact {
+  margin-top: 1.25rem !important;
+  color: #4b5d70;
+  font-size: 0.95rem;
+}
+
+.contact-panel .form-success a {
+  color: var(--navy);
+  font-weight: 600;
+}
+
 .bot-field {
   position: absolute;
   width: 1px;

@@ -14,7 +14,7 @@
       href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20260913-1" />
+    <link rel="stylesheet" href="styles.css?v=20261004-1" />
     <link rel="icon" type="image/png" href="images/favicon.png" />
     <link rel="apple-touch-icon" href="images/favicon.png" />
   </head>
@@ -176,7 +176,9 @@
             id="service-request"
             action="https://formspree.io/f/xoeqowzz"
             method="POST"
-            aria-describedby="required-note"
+            aria-describedby="required-note service-request-status"
+            data-async-form
+            data-form-error-message="Your information is still here, so you can try again. If you continue to have trouble, email info@hayesyacht.com directly."
           >
             <p class="form-note" id="required-note">
               Fields marked <span class="required-marker" aria-hidden="true">*</span> are required.
@@ -244,7 +246,31 @@
             </div>
 
             <button class="button button--primary form-submit" type="submit">Send Request</button>
+            <div
+              class="form-status"
+              id="service-request-status"
+              role="status"
+              aria-live="polite"
+              aria-atomic="true"
+              data-form-status
+            ></div>
             <p class="form-privacy">Please do not include passwords, payment details, or other sensitive information.</p>
+
+            <template data-form-success>
+              <div class="form-success" tabindex="-1" data-form-success-focus>
+                <p class="eyebrow">Service inquiry</p>
+                <h3>Request received</h3>
+                <p>
+                  Thanks for reaching out to Hayes Yacht Company. We received your service request
+                  and will follow up to discuss your boat, availability, and next steps.
+                </p>
+                <p class="form-success__contact">
+                  Need to add something?
+                  <a href="mailto:info@hayesyacht.com">Email info@hayesyacht.com</a> or
+                  <a href="tel:+12069020064">call/text (206) 902-0064</a>.
+                </p>
+              </div>
+            </template>
           </form>
         </div>
       </section>
@@ -255,5 +281,6 @@
         <p>© 2026 Hayes Yacht Company. Seattle, WA.</p>
       </div>
     </footer>
+    <script src="async-form.js?v=20261004-1" defer></script>
   </body>
 </html>
