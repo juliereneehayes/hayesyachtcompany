@@ -133,6 +133,12 @@
         }
 
         renderSuccess();
+
+        if (typeof window.gtag === "function") {
+          window.gtag("event", "generate_lead", {
+            method: "contact_form",
+          });
+        }
       } catch (error) {
         const message =
           error.name === "AbortError"
