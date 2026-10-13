@@ -12,6 +12,9 @@ test("all public pages retain GA4 and shared navigation", async () => {
     assert.match(html, /href="\/about\/"/);
     assert.match(html, /href="\/free-visit\/"/);
     assert.match(html, /class="skip-link"/);
+    assert.match(html, /href="https:\/\/www\.instagram\.com\/hayesyachtcompany\/"/);
+    assert.match(html, /target="_blank" rel="noopener noreferrer" aria-label="Instagram — Hayes Yacht Company"/);
+    assert.match(html, /class="instagram-link"[\s\S]*?<svg[^>]+aria-hidden="true"/);
   }
 });
 
