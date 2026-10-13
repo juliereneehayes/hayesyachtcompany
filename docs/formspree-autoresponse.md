@@ -16,7 +16,7 @@ account-side Formspree workflow and cannot be safely activated or verified from 
 4. Use this body:
 
    > Thanks for requesting a complimentary first visit from Hayes Yacht Company. We received your
-   > inquiry, and Will will follow up personally to confirm eligibility, availability, and next
+   > inquiry. You’ll hear personally from Captain Will to confirm eligibility, availability, and next
    > steps. Your visit is not scheduled or confirmed yet. Please do not email access codes,
    > passwords, alarm credentials, or other sensitive access details.
 
@@ -28,7 +28,7 @@ account-side Formspree workflow and cannot be safely activated or verified from 
    internal notification addresses the submitter.
 
 If the existing Formspree plan does not include Autoresponse, leave internal notifications and the
-on-page success acknowledgment in place. The smallest viable alternative is Will's personal reply;
+on-page success acknowledgment in place. The smallest viable alternative is Captain Will's personal reply;
 do not add exposed credentials, client-side email sending, or a paid service solely for this email.
 
 Formal privacy/terms publication remains tracked under GitHub issue #10.

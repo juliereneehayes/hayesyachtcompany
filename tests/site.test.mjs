@@ -42,8 +42,18 @@ test("free-visit form preserves safeguards, attribution, and distinct analytics"
 test("complimentary offer is consistently described as one visit", async () => {
   for (const page of ["index.html", "services/index.html", "free-visit/index.html"]) {
     const html = await read(page);
-    assert.match(html, /one complimentary|one simple|one thoughtful/i);
+    assert.match(html, /One complimentary visit per (?:eligible )?(?:30–60 ft )?boat/i);
+    assert.doesNotMatch(html, /not two separate|two names for the same|first\/baseline/i);
   }
+});
+
+test("founder language is accurate and formal introductions use William Hayes", async () => {
+  const pages = await Promise.all(["index.html", "about/index.html"].map(read));
+  const copy = pages.join("\n");
+  assert.doesNotMatch(copy, /liveaboard/i);
+  assert.match(copy, /William Hayes/);
+  assert.match(copy, /USCG-licensed captain/);
+  assert.match(copy, /apartment beside Lake Union/);
 });
 
 test("QR documentation records the exact stable attributed URL", async () => {
