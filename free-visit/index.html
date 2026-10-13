@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-SPS95WR4FC"></script><script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments)}gtag("js",new Date());gtag("config","G-SPS95WR4FC");</script>
+    <title>Request Your Free First Visit | Hayes Yacht Company</title>
+    <meta name="description" content="Request one complimentary first boat visit and photo report for your 30–60 ft boat in the Seattle area." />
+    <link rel="canonical" href="https://hayesyachtcompany.com/free-visit" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin /><link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&amp;family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css?v=20261012-1" /><link rel="icon" type="image/png" href="/images/favicon.png" />
+  </head>
+  <body class="lead-page">
+    <a class="skip-link" href="#main">Skip to main content</a>
+    <header class="site-header"><div class="container header-inner"><a class="brand-link" href="/" aria-label="Hayes Yacht Company home"><img class="site-logo" src="/images/hayes-yacht-company-logo.png" alt="Hayes Yacht Company — Seattle • Puget Sound" /></a><nav class="site-nav" aria-label="Primary navigation"><a href="/services/">Services &amp; Pricing</a><a href="/about/">About Us</a><a class="nav-cta" aria-current="page" href="/free-visit/">Free First Visit</a></nav></div></header>
+    <main id="main">
+      <section class="lead-hero"><div class="container lead-grid">
+        <div class="lead-copy">
+          <p class="eyebrow">A simple first step</p><h1>Request Your Free First Visit</h1>
+          <p class="hero__tagline">One thoughtful baseline check. One clear photo report. No subscription required.</p>
+          <ul class="check-list"><li>For eligible boats 30–60 ft</li><li>One complimentary first/baseline visit per boat</li><li>Personal follow-up from Will</li></ul>
+          <div class="reassurance"><h2>What happens next?</h2><ol><li>Send the short request form.</li><li>Will contacts you personally to learn about your boat and confirm eligibility and availability.</li><li>A visit is scheduled only after you and Will agree on the details.</li></ol></div>
+          <p class="small-print">Please don’t send gate codes, alarm credentials, passwords, keys, or access details through this form. We’ll arrange access safely during follow-up.</p>
+        </div>
+
+        <form class="service-form lead-form" id="free-visit-request" action="https://formspree.io/f/xoeqowzz" method="POST" aria-describedby="free-visit-required free-visit-status free-visit-privacy" data-async-form data-ga-method="free_first_visit_form" data-form-error-message="Your information is still here, so you can try again. If you continue to have trouble, email info@hayesyacht.com directly.">
+          <input type="hidden" name="subject" value="Free first visit request from {{ name }}" /><input type="hidden" name="inquiry_type" value="free_first_visit" />
+          <input type="hidden" name="utm_source" value="direct" /><input type="hidden" name="utm_medium" value="none" /><input type="hidden" name="utm_campaign" value="free_first_visit" /><input type="hidden" name="utm_term" value="" /><input type="hidden" name="utm_content" value="" />
+          <p class="form-note" id="free-visit-required">Fields marked <span class="required-marker" aria-hidden="true">*</span> are required.</p>
+          <div class="form-grid">
+            <div class="form-field"><label for="fv-name">Name <span class="required-marker" aria-hidden="true">*</span></label><input id="fv-name" name="name" type="text" autocomplete="name" required /></div>
+            <div class="form-field"><label for="fv-email">Email <span class="required-marker" aria-hidden="true">*</span></label><input id="fv-email" name="email" type="email" autocomplete="email" required /></div>
+            <div class="form-field"><label for="fv-phone">Phone <span class="required-marker" aria-hidden="true">*</span></label><input id="fv-phone" name="phone" type="tel" autocomplete="tel" required /></div>
+            <div class="form-field"><label for="fv-length">Boat length in feet <span class="required-marker" aria-hidden="true">*</span></label><input id="fv-length" name="boat_length" type="number" inputmode="decimal" min="30" max="60" step="0.1" placeholder="30–60" required /></div>
+            <div class="form-field form-field--full"><label for="fv-marina">Marina / moorage <span class="required-marker" aria-hidden="true">*</span></label><input id="fv-marina" name="marina_moorage" type="text" autocomplete="off" required /></div>
+            <div class="form-field form-field--full"><label for="fv-vessel">Vessel make / model <span class="optional-marker">(optional)</span></label><input id="fv-vessel" name="vessel_make_model" type="text" autocomplete="off" /></div>
+            <div class="form-field form-field--full"><label for="fv-notes">Anything helpful to know? <span class="optional-marker">(optional)</span></label><textarea id="fv-notes" name="message" rows="4" placeholder="General context only—no access or security details."></textarea></div>
+          </div>
+          <div class="bot-field" aria-hidden="true"><label for="fv-company-website">Leave this field blank</label><input id="fv-company-website" name="_gotcha" type="text" tabindex="-1" autocomplete="off" /></div>
+          <button class="button button--primary form-submit" type="submit">Request My Free First Visit</button><div class="form-status" id="free-visit-status" role="status" aria-live="polite" aria-atomic="true" data-form-status></div>
+          <p class="form-privacy" id="free-visit-privacy">By submitting, you agree that Hayes Yacht Company may use these details to respond about your request. This is an inquiry, not a confirmed appointment.</p>
+          <template data-form-success><div class="form-success" tabindex="-1" data-form-success-focus><p class="eyebrow">Thank you</p><h3>Your request is in</h3><p>We received your request for a complimentary first/baseline visit. Will will contact you personally to confirm eligibility, availability, and next steps. <strong>Your visit is not booked or confirmed yet.</strong></p><p class="form-success__contact">Need to add something? <a href="mailto:info@hayesyacht.com">Email us</a> or <a href="tel:+12069020064">call/text (206) 902-0064</a>.</p></div></template>
+        </form>
+      </div></section>
+
+      <section class="section container mini-trust" aria-label="Hayes Yacht Company credentials"><p><strong>USCG-licensed captain</strong><span>Captain-led care and professional delivery experience</span></p><p><strong>Commercially insured</strong><span>Certificate available on request</span></p><p><strong>Seattle local</strong><span>Based on Lake Union</span></p></section>
+    </main>
+    <footer class="footer"><div class="container footer-inner"><p>© 2026 Hayes Yacht Company. Seattle, WA.</p><nav aria-label="Footer navigation"><a href="/">Home</a><a href="/services/">Services &amp; Pricing</a><a href="/about/">About Us</a></nav></div></footer>
+    <script src="/async-form.js?v=20261012-1" defer></script>
+  </body>
+</html>
