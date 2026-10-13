@@ -3,6 +3,20 @@
 
   const DEFAULT_TIMEOUT = 15000;
 
+  function preserveAttribution(form) {
+    const params = new URLSearchParams(window.location.search);
+    ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"].forEach(
+      function (name) {
+        const field = form.elements.namedItem(name);
+        const value = params.get(name);
+
+        if (field && value) {
+          field.value = value.slice(0, 200);
+        }
+      }
+    );
+  }
+
   function getErrorMessage(response, data, fallbackMessage) {
     if (response.status === 429) {
       return "Too many requests were submitted in a short period. Please wait a moment and try again.";
@@ -47,6 +61,8 @@
     const defaultButtonLabel = submitButton.textContent;
     const fallbackErrorMessage = form.dataset.formErrorMessage;
     let submitting = false;
+
+    preserveAttribution(form);
 
     function renderState(state, message) {
       form.classList.toggle("is-submitting", state === "submitting");
@@ -136,7 +152,7 @@
 
         if (typeof window.gtag === "function") {
           window.gtag("event", "generate_lead", {
-            method: "contact_form",
+            method: form.dataset.gaMethod || "contact_form",
           });
         }
       } catch (error) {
