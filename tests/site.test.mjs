@@ -3,9 +3,21 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), "utf8");
+const serviceDetailPages = [
+  "services/dock-check/index.html",
+  "services/dock-watch/index.html",
+  "services/dock-watch-plus/index.html",
+];
+const publicPages = [
+  "index.html",
+  "services/index.html",
+  ...serviceDetailPages,
+  "about/index.html",
+  "free-visit/index.html",
+];
 
 test("all public pages retain GA4 and shared navigation", async () => {
-  for (const page of ["index.html", "services/index.html", "about/index.html", "free-visit/index.html"]) {
+  for (const page of publicPages) {
     const html = await read(page);
     assert.match(html, /G-SPS95WR4FC/);
     assert.match(html, /href="\/services\/"/);
@@ -15,6 +27,43 @@ test("all public pages retain GA4 and shared navigation", async () => {
     assert.match(html, /href="https:\/\/www\.instagram\.com\/hayesyachtcompany\/"/);
     assert.match(html, /target="_blank" rel="noopener noreferrer" aria-label="Instagram — Hayes Yacht Company"/);
     assert.match(html, /class="instagram-link"[\s\S]*?<svg[^>]+aria-hidden="true"/);
+  }
+});
+
+test("service comparison links to every service detail page", async () => {
+  const html = await read("services/index.html");
+  assert.match(html, /href="\/services\/dock-check\/">Dock Check/);
+  assert.match(html, /href="\/services\/dock-watch\/">Dock Watch/);
+  assert.match(html, /href="\/services\/dock-watch-plus\/">Dock Watch Plus/);
+});
+
+test("service detail pages use only confirmed scope, pricing, and reporting", async () => {
+  const [dockCheck, dockWatch, dockWatchPlus] = await Promise.all(serviceDetailPages.map(read));
+
+  assert.match(dockCheck, /dockside visual check/i);
+  assert.match(dockCheck, /\$99<span>\/mo/);
+  assert.match(dockCheck, /\$159<span>\/mo/);
+  assert.match(dockCheck, /same for every boat length/i);
+  assert.match(dockCheck, /does not include going aboard, operating equipment, or checking aboard systems/i);
+
+  for (const price of ["$129", "$149", "$169", "$179", "$209", "$239", "$279", "$319"]) {
+    assert.ok(dockWatch.includes(price), `Dock Watch missing ${price}`);
+  }
+  assert.match(dockWatch, /full aboard check/i);
+  assert.match(dockWatch, /Monthly/);
+  assert.match(dockWatch, /Every other week/);
+  assert.match(dockWatch, /Weekly/);
+
+  for (const price of ["$399/mo", "$449/mo", "$499/mo"]) {
+    assert.ok(dockWatchPlus.includes(price), `Dock Watch Plus missing ${price}`);
+  }
+  assert.match(dockWatchPlus, /weekly aboard checks plus one monthly engine run/i);
+
+  for (const html of [dockCheck, dockWatch, dockWatchPlus]) {
+    assert.match(html, /Boat Binder/);
+    assert.match(html, /href="\/free-visit\/">Request Your Free First Visit/);
+    assert.match(html, /href="\/services\/"/);
+    assert.doesNotMatch(html, /\b(?:minutes?|hours?)\b|battery|bilge|shore power|fluid levels?|guarantee/i);
   }
 });
 
@@ -43,7 +92,7 @@ test("free-visit form preserves safeguards, attribution, and distinct analytics"
 });
 
 test("complimentary offer is consistently described as one visit", async () => {
-  for (const page of ["index.html", "services/index.html", "free-visit/index.html"]) {
+  for (const page of ["index.html", "services/index.html", ...serviceDetailPages, "free-visit/index.html"]) {
     const html = await read(page);
     assert.match(html, /One complimentary visit per (?:eligible )?(?:30–60 ft )?boat/i);
     assert.doesNotMatch(html, /not two separate|two names for the same|first\/baseline/i);
