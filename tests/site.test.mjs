@@ -14,6 +14,7 @@ const publicPages = [
   ...serviceDetailPages,
   "about/index.html",
   "free-visit/index.html",
+  "referrals/index.html",
 ];
 
 test("all public pages retain GA4 and shared navigation", async () => {
@@ -23,6 +24,7 @@ test("all public pages retain GA4 and shared navigation", async () => {
     assert.match(html, /href="\/services\/"/);
     assert.match(html, /href="\/about\/"/);
     assert.match(html, /href="\/free-visit\/"/);
+    assert.match(html, /href="\/referrals\/"/);
     assert.match(html, /class="skip-link"/);
     assert.match(html, /href="https:\/\/www\.instagram\.com\/hayesyachtcompany\/"/);
     assert.match(html, /target="_blank" rel="noopener noreferrer" aria-label="Instagram — Hayes Yacht Company"/);
@@ -91,6 +93,35 @@ test("free-visit form preserves safeguards, attribution, and distinct analytics"
   assert.doesNotMatch(script, /email:|phone:|name:/);
 });
 
+test("referral page reuses the protected lead flow with distinct attribution", async () => {
+  const html = await read("referrals/index.html");
+  const script = await read("async-form.js");
+
+  assert.match(html, /<title>Referrals \| Hayes Yacht Company<\/title>/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/hayesyachtcompany\.com\/referrals\/"/);
+  assert.match(html, /action="https:\/\/formspree\.io\/f\/xoeqowzz"/);
+  assert.equal((html.match(/href="\/referrals\/"/g) || []).length, 1);
+  assert.doesNotMatch(html.match(/<header[\s\S]*?<\/header>/)?.[0] || "", /href="\/referrals\/"/);
+
+  for (const field of ["name", "email", "phone", "boat_length", "marina_moorage", "vessel_make_model", "referred_by", "message"]) {
+    assert.match(html, new RegExp(`name="${field}"`));
+  }
+  for (const field of ["utm_source", "utm_medium", "utm_campaign", "utm_term", "utm_content"]) {
+    assert.match(html, new RegExp(`name="${field}"`));
+  }
+
+  assert.match(html, /name="inquiry_type" value="referral"/);
+  assert.match(html, /name="utm_campaign" value="referral_program"/);
+  assert.match(html, /name="referred_by"[^>]+placeholder="Person, business, or marina name \(optional\)"/);
+  assert.match(html, /name="_gotcha"/);
+  assert.match(html, /data-ga-method="referral_form"/);
+  assert.match(html, /data-ga-event="referral_submit"/);
+  assert.match(html, /data-ga-lead-type="referral"/);
+  assert.match(script, /window\.gtag\("event", "generate_lead", eventParameters\)/);
+  assert.match(script, /window\.gtag\("event", form\.dataset\.gaEvent, eventParameters\)/);
+  assert.doesNotMatch(script, /email:|phone:|name:/);
+});
+
 test("complimentary offer is consistently described as one visit", async () => {
   for (const page of ["index.html", "services/index.html", ...serviceDetailPages, "free-visit/index.html"]) {
     const html = await read(page);
@@ -111,4 +142,5 @@ test("founder language is accurate and formal introductions use William Hayes", 
 test("QR documentation records the exact stable attributed URL", async () => {
   const docs = await read("assets/qr/README.md");
   assert.match(docs, /https:\/\/hayesyachtcompany\.com\/free-visit\?utm_source=print&utm_medium=qr&utm_campaign=free_first_visit/);
+  assert.match(docs, /https:\/\/hayesyachtcompany\.com\/referrals\/\?utm_source=print&utm_medium=qr&utm_campaign=referral_program/);
 });

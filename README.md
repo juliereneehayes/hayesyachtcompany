@@ -22,7 +22,7 @@ The site has no build step or runtime package dependencies.
 
 ## Formspree acknowledgment
 
-Both inquiry forms post asynchronously to the existing Formspree endpoint. The free-first-visit
+All inquiry forms post asynchronously to the existing Formspree endpoint. The free-first-visit
 form is ready for Formspree's account-side autoresponse, but that workflow must be enabled and
 verified in the Formspree dashboard. See `docs/formspree-autoresponse.md`.
 
