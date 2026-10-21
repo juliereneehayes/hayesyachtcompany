@@ -151,9 +151,19 @@
         renderSuccess();
 
         if (typeof window.gtag === "function") {
-          window.gtag("event", "generate_lead", {
+          const eventParameters = {
             method: form.dataset.gaMethod || "contact_form",
-          });
+          };
+
+          if (form.dataset.gaLeadType) {
+            eventParameters.lead_type = form.dataset.gaLeadType;
+          }
+
+          window.gtag("event", "generate_lead", eventParameters);
+
+          if (form.dataset.gaEvent) {
+            window.gtag("event", form.dataset.gaEvent, eventParameters);
+          }
         }
       } catch (error) {
         const message =
