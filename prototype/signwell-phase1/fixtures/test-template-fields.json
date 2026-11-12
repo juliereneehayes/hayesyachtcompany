@@ -1,0 +1,14 @@
+{
+  "notice": "TEST DOCUMENT — NOT LEGALLY BINDING",
+  "templateVersion": "synthetic-v1",
+  "roles": [
+    { "role": "owner", "name": "Morgan Example", "email": "morgan@example.com", "signingOrder": 1, "signatureAnchor": "Fictional owner signature" },
+    { "role": "hyc_representative", "name": "Captain Will (Test)", "email": "captain.will@example.com", "signingOrder": 2, "signatureAnchor": "HYC representative signature" }
+  ],
+  "fields": [
+    { "type": "signature", "role": "owner", "anchor": "Fictional owner signature", "required": true },
+    { "type": "signature", "role": "hyc_representative", "anchor": "HYC representative signature", "required": true },
+    { "type": "initials", "role": "owner", "anchor": "Initials (optional)", "required": false }
+  ],
+  "verification": "Field anchors and positions are a setup specification only. Confirm actual positions, recipient role assignment, and required/optional behavior in SignWell Test Mode before using provider mode."
+}
