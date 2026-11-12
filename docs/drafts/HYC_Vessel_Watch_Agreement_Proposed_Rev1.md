@@ -309,8 +309,9 @@ The source agreement contains a separate optional Vessel Delivery Authorization 
 2. Decide whether the existing §9.3 late-charge provision remains, when it accrues, what notice/cure applies, and whether it is permitted; this draft does not send it through Stripe automatically.
 3. Confirm Section 10.4's annual prepayment refund calculation against the new annual subscription term and termination timing. Its text above is intentionally unchanged; no automated Stripe refund is implied.
 4. Review electronic-record/e-sign consent, consumer disclosure and withdrawal/paper-copy handling, retention and accessible copies, identity/signature attribution, signature order, Captain Will's authority, and initials/assent evidence for §§13–14.
-5. Washington maritime counsel should review §§13–14 (liability cap, damages exclusion, indemnity), §§3–8 service scope/safety/emergency boundaries, federal maritime/Washington law interaction, and Exhibit B delivery allocation.
-6. Confirm insurance evidence timing and eligibility exceptions; privacy, photographs, access security, and retention/export of signed agreement and audit evidence after Boat Binder access ends.
-7. Confirm authorized activities and each plan's included checks/pricing so no checked service option conflicts with SOP-001, insurance, or service capability.
+5. Decide how the customer's signature, initial successful payment, Agreement Effective Date, commencement of paid service, and HYC's later review/countersignature relate; define HYC decline/cancellation/refund rights and any required customer disclosures. Do not treat payment as HYC acceptance or full execution.
+6. Washington maritime counsel should review §§13–14 (liability cap, damages exclusion, indemnity), §§3–8 service scope/safety/emergency boundaries, federal maritime/Washington law interaction, and separate Exhibit B delivery allocation.
+7. Confirm insurance evidence timing and eligibility exceptions; privacy, photographs, access security, and retention/export of signed agreement and audit evidence after Boat Binder access ends.
+8. Confirm authorized activities and each plan's included checks/pricing so no checked service option conflicts with SOP-001, insurance, or service capability.
 
 **Drafting note:** This is a proposed business/technical draft, not legal advice or a final customer agreement. It does not alter the source PDF.

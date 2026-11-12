@@ -13,7 +13,7 @@
 - **Do not choose DocuSeal Community Edition for the full production flow:** its free self-hosted edition does not include the production API and embedding features needed here. DocuSeal Pro on-prem is $240/user/year plus $0.20/completion.
 - **PandaDoc is a credible alternative, but not the default:** its new Free API offer advertises 60 sends/year, five templates, API and embedded signing. The detailed current API feature matrix says Free has no audit trail and no webhooks; the API Developer tier has webhooks but only “limited” audit trail. Other PandaDoc help pages conflict about webhook eligibility and the 5/month versus 60/year allowance. Confirm with the vendor before treating Free as production-ready.
 
-Keep the existing static site as the frontend and add a small AWS serverless backend. Sign first, then use Stripe Checkout. Activate only after the provider confirms completion, HYC has durably stored the completed PDF and evidence, and Stripe confirms the initial invoice is paid.
+Keep the existing static site as the frontend and add a small backend. Per the final enrollment decision, the customer signs first and proceeds directly to checkout; Captain Will reviews and countersigns after payment. Agreement execution, payment, HYC acceptance, and operational readiness remain separate states. Phase 2 is a simulated end-to-end prototype only; live Stripe integration remains out of scope for that phase.
 
 ## Repository findings
 
@@ -105,16 +105,16 @@ Create Stripe Checkout Sessions server-side in subscription mode for the existin
 ## E. State machine and recovery
 
 ```text
-Draft → Invited → In progress → Agreement pending → Agreement signed
-                                                   → Payment pending → Active
-Payment pending → Payment failed → Payment pending (retry)
-Payment pending → checkout expired/abandoned → Payment pending (resume)
-Draft/Invited/In progress → Canceled or expired
-Active → Canceled (Stripe subscription canceled; retain signed records)
-Agreement pending → declined/expired → In progress (reissue only by explicit decision)
+Draft → Invited or Self-service → In progress → Customer signature complete
+Customer signature complete → Payment pending → Payment received
+Payment pending → Payment failed / checkout expired / abandoned → Resume or cancel
+Payment received → HYC review pending → HYC accepted (Captain Will countersigns)
+HYC review pending → HYC declined → Simulated subscription canceled + manual refund review
+HYC accepted → Fully executed → Operational onboarding → Service ready
+Any pending state → Canceled or expired (retain records per policy)
 ```
 
-Persist enrollment, agreement and payment as separate dimensions so retries do not erase completed work. Backend alone applies transitions. “Agreement signed” means both the owner and HYC authorized representative (Captain Will) have completed the agreement signature sequence. For activation require: provider API/status confirms all signatures; final PDF and audit evidence are in S3 with hashes; Stripe webhook/session/subscription confirms initial invoice paid. For delayed payment methods, await verified asynchronous success; for simpler immediate V1 activation, disable delayed methods. Failed or expired Checkout creates a new session only after confirming no successful session exists. Reuse the signed agreement if terms are unchanged. Price/term changes require a new immutable agreement version and explicit re-sign.
+Persist enrollment, customer agreement signature, payment, HYC approval/countersignature, and operational readiness as separate dimensions so retries do not erase completed work. Both captain-invited and self-service entry points use the same underlying state machine. After customer signature, immediately offer simulated checkout without waiting for HYC countersignature. Record payment success as “payment received / HYC acceptance pending,” not active service or fully executed agreement. HYC acceptance requires Will's countersignature after review. If HYC declines, simulate subscription cancellation and a manual-refund-pending state; never infer a refund from cancellation. Billing anniversaries follow the initial successful payment timestamp. Failed or expired checkout can be resumed without a duplicate payment/subscription. Price or term changes require a new immutable agreement version and explicit customer re-sign.
 
 Verify Stripe webhook signatures over the raw body; persist event IDs for deduplication. Verify provider webhook mechanism, then retrieve current document status from provider before completion. Persist event durably before acknowledging; retry transient failures; periodically reconcile stuck pending/failed enrollments. A webhook replay or late/out-of-order event must not regress Active or create a duplicate subscription.
 
@@ -150,14 +150,16 @@ ESIGN (15 U.S.C. §7001) generally prevents denying legal effect solely because 
 
 Use the existing click-through prototype as visual shell in a separate staging hostname/environment with synthetic data, provider test mode, Stripe test mode, isolated AWS resources and email sink. Do not use real customer data, live invitations/keys, real cards or production systems.
 
-1. **Terms/test access:** get SignWell pricing/embed confirmation; provide missing PDFs; finalize server plan/Price mapping and legal-reviewed consent/template.
+1. **Terms/test access:** confirm SignWell Test Mode and embedded-signing access; finalize the legal-reviewed consent/template. Use mock/test provider data only.
 2. **Backend:** staging API, DynamoDB enrollment, token hash/expiry/revocation, test invite, resumable questionnaire. Wrong, expired, revoked and cross-enrollment links must be denied.
 3. **Agreement:** generate a frozen test PDF/Exhibit A with validated data and version/hash.
 4. **Signing:** test embedded signing and multiple signers in provider sandbox; process event; download PDF/evidence into private S3 and record hash.
-5. **Stripe:** test Checkout subscription using seeded Customer/Price and Stripe test card; test success, failure, abandoned/expired Checkout, async behavior if enabled, duplicate webhook and retry.
-6. **Completion:** Active only after signed+stored evidence+paid initial invoice; owner and Captain confirmations go only to email sink, at most once; admin retrieves with short-lived URL.
+5. **Simulated payment:** model Checkout success, failure, abandonment, resume, duplicate submit, simulated cancellation and manual-refund-pending. Do not connect Stripe or create live/test Stripe subscriptions in Phase 2.
+6. **HYC review and readiness:** notify Will in a local/mock inbox after customer payment, require review and countersignature, model decline/cancel/refund follow-up, then model full execution and separate Boat Binder/setup/service-readiness steps.
 
-Acceptance cases: incomplete/declined/expired signing cannot activate; invalid/duplicate/out-of-order webhooks cannot regress/activate prematurely; lost events reconcile; completion PDF hash matches stored object; no public document URL; authorized admin access only; tampered Price/fields denied; owner cannot enumerate other enrollments; success page alone cannot activate; repeated Checkout/resume cannot duplicate subscription; failed payment resumes against same signed agreement; term changes reissue rather than overwrite; Stripe cancellation updates HYC but preserves records; annual refund remains manual and Section 10.4 governs.
+Acceptance cases: customer can complete questionnaire → plan/pricing → agreement signature → simulated payment without waiting or returning for Will; countersignature remains second and appears only after HYC review; payment success alone never means HYC accepted, fully executed, or service-ready; signature, payment, HYC acceptance, and readiness are separate; decline after payment cancels the simulated subscription and queues a manual refund without automatic refund behavior; invite and self-service entry points converge on identical validation/state transitions; anniversary anchor is first successful simulated charge, not calendar month; failed/abandoned payment can resume without duplicate charge; agreement version/price changes require re-sign; customer receives paid/pending-acceptance confirmation, then fully executed confirmation and next steps after countersignature; Will receives a local notification and can review, accept, or decline; Boat Binder and first-visit scheduling remain post-acceptance operational steps; Section 10.4 stays verbatim and any refund decision remains manual pending counsel.
+
+**Legal review gate:** counsel must decide how the payment timestamp, Agreement Effective Date, commencement of the paid service period, HYC's later countersignature/acceptance, decline rights, subscription cancellation and manual refund relate. The prototype must display a clear “payment received; agreement pending HYC acceptance” state and must not represent customer signature/payment as full execution.
 
 ## I. Open decisions / vendor questions
 

@@ -48,7 +48,8 @@ Run tests with `npm test` in the same directory. For a future provider test, use
 2. Have SignWell confirm Free Developer entitlements, usage/quota accounting, template and embed endpoint access, suppression of outbound mail, audit/PDF availability and retention.
 3. Manually create one synthetic Test Mode template with owner and HYC roles, ordered signature fields, optional initials, and a saved version. Verify fields and data mapping before generating any draft.
 4. Run one provider test with synthetic `@example.com` recipients only after a safe no-email behavior is confirmed; inspect embedded identity controls, event/status transitions, PDF/audit evidence, and template version behavior.
-5. Keep payment integration, Stripe subscription creation, AWS, public webhook handling, account authentication, and production enrollment as separate design/review work. No Phase 1 result authorizes production rollout.
+5. Follow [Phase 2 Enrollment Prototype Requirements](HYC_Phase2_Enrollment_Prototype_Requirements.md): simulate payment only, with customer signature → checkout → HYC review/countersignature. Do not connect Stripe or create Stripe subscriptions in Phase 2.
+6. Keep AWS, public webhook handling, production identity, live email, and production enrollment as later design/review work. No Phase 1 result authorizes production rollout.
 
 ## Official SignWell references
 
