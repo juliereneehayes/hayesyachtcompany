@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HYC SignWell Phase 1 Test</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="#">HAYES YACHT COMPANY</a><span class="header-note">LOCAL SIGNING PROTOTYPE</span></header>
+  <main>
+    <div class="eyebrow">PHASE 1 · SYNTHETIC DATA</div>
+    <h1>Signature flow test</h1>
+    <p class="lede">Try the owner-first, HYC-second sequence with a fictional vessel. This sandbox does not connect to Stripe or production enrollment.</p>
+    <div id="mode-banner" class="mode-banner" role="status">Loading prototype mode…</div>
+    <section class="layout">
+      <article class="card sample-card">
+        <div class="doc-label">SAMPLE DOCUMENT</div>
+        <strong class="test-stamp">TEST DOCUMENT — NOT LEGALLY BINDING</strong>
+        <h2>Harbor Watch Sample Service Agreement</h2>
+        <dl>
+          <div><dt>Fictional owner</dt><dd>Morgan Example</dd></div>
+          <div><dt>Fictional vessel</dt><dd>S/V Sample Current<br>2018 Example 32</dd></div>
+          <div><dt>Example plan</dt><dd>Dock Watch · monthly</dd></div>
+          <div><dt>Placeholder price</dt><dd>$0.00</dd></div>
+        </dl>
+        <p class="quiet">No payment or operational authorization is granted.</p>
+        <button id="create" class="primary">Create synthetic test document</button>
+        <button id="reset" class="secondary">Reset local test</button>
+      </article>
+      <article class="card workflow-card">
+        <div class="row-title"><h2>Signing workflow</h2><span id="status-pill" class="status-pill">Not started</span></div>
+        <ol id="signers" class="signers">
+          <li><span class="step">1</span><div><strong>Morgan Example</strong><small>Fictional owner · signs first</small></div><span class="state">Waiting</span></li>
+          <li><span class="step">2</span><div><strong>Captain Will (Test)</strong><small>HYC representative · countersigns second</small></div><span class="state">Locked</span></li>
+        </ol>
+        <div class="controls">
+          <button id="sign-current" class="primary" disabled>Continue to signer</button>
+          <button id="poll" class="secondary" disabled>Refresh provider status</button>
+        </div>
+        <div id="embed-wrap" class="embed-wrap" hidden>
+          <p class="quiet">SignWell Test Mode signing session. Confirm the signer shown by SignWell before signing.</p>
+          <iframe id="signwell-frame" title="SignWell embedded test signing" referrerpolicy="no-referrer"></iframe>
+        </div>
+        <div id="mock-controls" class="mock-controls" hidden>
+          <p class="quiet">Simulation only: the buttons below do not create signatures in SignWell.</p>
+          <button id="mock-sign" class="secondary">Simulate this signer signing</button>
+          <div class="mock-outcomes"><label for="mock-outcome">Alternative test outcome</label><select id="mock-outcome"><option value="declined_simulated">Declined</option><option value="expired_simulated">Expired</option><option value="canceled_simulated">Canceled</option></select><button id="apply-outcome" class="secondary">Simulate outcome</button></div>
+        </div>
+        <div class="download-row"><button id="audit" class="secondary" disabled>View audit evidence</button><a id="pdf" class="download disabled" aria-disabled="true">Download completed test PDF</a></div>
+        <pre id="audit-output" hidden></pre>
+        <p id="message" class="message" aria-live="polite"></p>
+        <p class="micro">A provider-confirmed complete status comes from SignWell's API. A redirect or local simulation does not mark a provider document complete.</p>
+      </article>
+    </section>
+    <details class="details"><summary>Prototype boundaries and test notes</summary><p>All names and emails are synthetic <code>@example.com</code> addresses. Provider mode is disabled unless explicitly configured with a SignWell API key, a test template ID, and <code>SIGNWELL_TEST_MODE=true</code>. Test Mode is sent with both draft creation and the later send call. No customer email should be entered here.</p><p>Embedded signing may disable SignWell email authentication. HYC must separately authenticate the owner magic link and verify signer identity before issuing an embedded session; the prototype's test iframe is not identity proof.</p></details>
+  </main>
+  <footer>Hayes Yacht Company · internal prototype · no production data</footer>
+</body>
+</html>
