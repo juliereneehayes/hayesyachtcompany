@@ -4,7 +4,7 @@
 
 ## One customer flow for both entry paths
 
-Captain-invited and future self-service users enter through different entry points but use the same questionnaire, validation, agreement, payment simulation, state model, and review queue.
+Phase 2 implements **captain-invited enrollment as the only entry point**. Keep the underlying questionnaire, validation, agreement, simulated payment, state model, and review queue reusable for future self-service subscriptions, but do not build or expose a public self-service entry point in this phase.
 
 1. Complete the short onboarding questionnaire.
 2. Confirm service plan, exact pricing, billing cadence, and renewal anniversary basis.
@@ -46,7 +46,7 @@ Payment success does not equal HYC acceptance, full agreement execution, or serv
 
 ## Phase 2 acceptance criteria
 
-1. Captain-invited and self-service entry paths converge on the same validation and state machine; synthetic sample records stay separate.
+1. Captain Will can create a local invitation and the customer can enter only through that invitation. Enrollment logic is reusable for later self-service, but no public self-service entry point exists; synthetic records stay separate.
 2. Customer can complete questionnaire, plan/pricing review, agreement signing, and simulated checkout in one session without waiting for Will or returning later.
 3. After the customer signs, checkout is immediately available while HYC countersignature remains pending.
 4. Payment received, HYC review, HYC acceptance, full execution, and service readiness are visibly separate states.
