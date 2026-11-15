@@ -198,6 +198,7 @@ test('questionnaire mappings require HIN and default report email and emergency 
 
 test('customer screen keeps back navigation, saved field values, and removes obsolete fields',async()=>{
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../public/styles.css',import.meta.url),'utf8');
   assert.match(app,/value="\$\{v\}"/);
   assert.match(app,/viewStep=0;renderCustomer\(\)/);
   assert.match(app,/viewStep=1;renderCustomer\(\)/);
@@ -220,4 +221,14 @@ test('customer screen keeps back navigation, saved field values, and removes obs
   assert.match(app,/Access limitations, hazards, and do-not-operate notes[\s\S]*?real customer information\.[\s\S]*?name="confirmAuthority"/);
   assert.match(app,/owner\.addEventListener\('input',[\s\S]*?signer\.value=owner\.value/);
   assert.doesNotMatch(app,/id="value"[^>]*max=/);
+  assert.ok(app.indexOf('<h3>Owner &amp; Contact</h3>')<app.indexOf('<h3>Vessel &amp; Location</h3>'));
+  assert.ok(app.indexOf('<h3>Vessel &amp; Location</h3>')<app.indexOf('<h3>Insurance</h3>'));
+  assert.ok(app.indexOf('<h3>Insurance</h3>')<app.indexOf('<h3>Emergency Contact</h3>'));
+  assert.match(css,/\.field-group\.full\{grid-column:1\/-1\}/);
+  assert.match(css,/\.group-fields\{display:grid;grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
+  assert.match(css,/\.field input\[type="checkbox"\]\{width:1rem/);
+  assert.match(css,/\.confirm-row\{display:flex;align-items:flex-start;gap:10px\}/);
+  assert.match(css,/@media\(max-width:650px\)[\s\S]*?\.group-fields\{grid-template-columns:1fr\}/);
+  assert.match(app,/<input id="confirmAuthority" type="checkbox" name="confirmAuthority" required[^>]*><label for="confirmAuthority">/);
+  assert.match(app,/<input id="insuranceConfirmed" type="checkbox" name="insuranceConfirmed" required[^>]*><label for="insuranceConfirmed">/);
 });
