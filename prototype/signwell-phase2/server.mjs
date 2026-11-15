@@ -31,12 +31,29 @@ export function createEnrollment(input = {}) {
     paymentStatus: 'not_started', hycDecision: 'not_reviewed',
     serviceReadiness: 'not_started', questionnaire: null, selection: null,
     signedAt: null, paidAt: null, nextBillingAt: null, refundStatus: 'not_applicable',
+    agreementVersion: 0, signedAgreementVersion: null, signedTermsSnapshot: null,
     signers: { customer: 'pending', captainWill: 'not_requested' },
     ...input,
   };
 }
 
+function assertTermsEditable(enrollment) {
+  if (enrollment.signedAt || ['customer_signed','fully_executed_simulated'].includes(enrollment.agreementStatus) || enrollment.paymentStatus === 'succeeded' || ['accepted','declined'].includes(enrollment.hycDecision)) {
+    throw new Error('Signed enrollment terms are locked. Material changes require a new agreement version and a new customer signature.');
+  }
+}
+
+export function assertEnrollmentConsistency(e) {
+  if (e.signedAt && (!e.questionnaire || !e.selection || !e.signedTermsSnapshot || e.signedAgreementVersion !== e.agreementVersion || e.signers.customer !== 'signed_simulated')) throw new Error('Enrollment signature/version state is inconsistent.');
+  if (e.signedAt && (JSON.stringify(e.signedTermsSnapshot.questionnaire) !== JSON.stringify(e.questionnaire) || JSON.stringify(e.signedTermsSnapshot.selection) !== JSON.stringify(e.selection))) throw new Error('Signed terms changed after customer signature.');
+  if (e.paymentStatus === 'succeeded' && (!e.signedAt || !e.paidAt || !['review_pending','accepted'].includes(e.hycDecision))) throw new Error('Payment state is inconsistent with signature or HYC review.');
+  if (e.hycDecision === 'accepted' && (e.paymentStatus !== 'succeeded' || e.agreementStatus !== 'fully_executed_simulated' || e.signers.captainWill !== 'signed_simulated')) throw new Error('HYC acceptance state is inconsistent.');
+  if (e.hycDecision === 'declined' && (!e.paidAt || e.paymentStatus !== 'canceled_simulated' || e.refundStatus !== 'manual_refund_pending' || e.signers.captainWill !== 'declined')) throw new Error('HYC decline state is inconsistent.');
+  return true;
+}
+
 export function applyQuestionnaire(enrollment, data) {
+  assertTermsEditable(enrollment);
   const required = ['ownerName','signerAuthority','confirmAuthority','insuranceConfirmed','ownerEmail','ownerPhone','vesselName','vesselModel','loa','value','marina','slip','insurer','policyExpiry','emergencyName','emergencyPhone','reportEmail'];
   for (const key of required) if (!String(data?.[key] ?? '').trim()) throw new Error(`Please complete ${key}.`);
   if (data.confirmAuthority !== 'on' || data.insuranceConfirmed !== 'on') throw new Error('Confirm signer authority and current insurance before continuing.');
@@ -51,16 +68,19 @@ export function applyQuestionnaire(enrollment, data) {
   enrollment.questionnaire.hin = String(data.hin || '').trim();
   enrollment.questionnaire.requestedChecks = Array.isArray(data.requestedChecks) ? data.requestedChecks.map(String).slice(0,10) : [];
   enrollment.questionnaire.emergencyCap = Math.max(0, Number(data.emergencyCap) || 0);
+  enrollment.agreementVersion += 1;
   enrollment.agreementStatus = 'awaiting_customer';
   enrollment.updatedAt = new Date().toISOString();
   return enrollment;
 }
 
 export function choosePlan(enrollment, plan, visitFrequency, billingCadence = 'Monthly') {
+  assertTermsEditable(enrollment);
   if (!enrollment.questionnaire) throw new Error('Complete the questionnaire first.');
   if (!['Monthly','Annual'].includes(billingCadence)) throw new Error('Choose monthly or annual billing.');
   const amounts = getPrice(plan, visitFrequency, Number(enrollment.questionnaire.loa));
   enrollment.selection = { plan, visitFrequency, cadence: billingCadence, monthlyEquivalent: amounts.monthly, amount: billingCadence === 'Annual' ? amounts.annual : amounts.monthly, currency: 'USD' };
+  enrollment.agreementVersion += 1;
   enrollment.agreementStatus = 'awaiting_customer';
   enrollment.updatedAt = new Date().toISOString();
   return enrollment;
@@ -71,14 +91,18 @@ export function signAsCustomer(enrollment) {
   enrollment.agreementStatus = 'customer_signed';
   enrollment.signers.customer = 'signed_simulated';
   enrollment.signedAt = new Date().toISOString();
+  enrollment.signedAgreementVersion = enrollment.agreementVersion;
+  enrollment.signedTermsSnapshot = structuredClone({ questionnaire: enrollment.questionnaire, selection: enrollment.selection });
   enrollment.paymentStatus = 'pending';
   enrollment.updatedAt = enrollment.signedAt;
+  assertEnrollmentConsistency(enrollment);
   return enrollment;
 }
 
 export function simulatePayment(enrollment, outcome = 'succeeded', now = new Date()) {
   if (enrollment.agreementStatus !== 'customer_signed') throw new Error('Customer signature is required before checkout.');
-  if (enrollment.paymentStatus === 'succeeded') throw new Error('Payment is already recorded; duplicate checkout is blocked.');
+  if (enrollment.paymentStatus === 'succeeded' || enrollment.paidAt) throw new Error('Payment is already recorded; duplicate checkout is blocked.');
+  if (['accepted','declined'].includes(enrollment.hycDecision) || enrollment.enrollmentStatus === 'declined_refund_pending') throw new Error('HYC has made a final decision; this enrollment cannot be paid or reopened.');
   if (!['succeeded','failed','abandoned'].includes(outcome)) throw new Error('Unsupported simulated payment result.');
   enrollment.paymentStatus = outcome;
   if (outcome === 'succeeded') {
@@ -90,6 +114,7 @@ export function simulatePayment(enrollment, outcome = 'succeeded', now = new Dat
     enrollment.signers.captainWill = 'pending_review';
   }
   enrollment.updatedAt = now.toISOString();
+  assertEnrollmentConsistency(enrollment);
   return enrollment;
 }
 
@@ -120,6 +145,7 @@ export function decideEnrollment(enrollment, decision) {
     enrollment.enrollmentStatus = 'declined_refund_pending';
   } else throw new Error('Choose accept or decline.');
   enrollment.updatedAt = new Date().toISOString();
+  assertEnrollmentConsistency(enrollment);
   return enrollment;
 }
 

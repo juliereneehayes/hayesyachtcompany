@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addAnniversary, applyQuestionnaire, choosePlan, createEnrollment, decideEnrollment, getPrice, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
+import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, decideEnrollment, getPrice, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
 
 const questionnaire = {
   ownerName:'Riley Example',signerAuthority:'Owner',confirmAuthority:'on',insuranceConfirmed:'on',ownerEmail:'riley@example.com',ownerPhone:'555-0101',reportEmail:'riley@example.com',
@@ -65,4 +65,42 @@ test('payment cannot precede customer signature and HYC cannot review unpaid rec
   const e=createEnrollment();
   assert.throws(()=>simulatePayment(e,'succeeded'),/Customer signature/);
   assert.throws(()=>decideEnrollment(e,'accept'),/Only a paid/);
+});
+
+test('late questionnaire and plan updates after signature require a new agreement version and signature',()=>{
+  const e=prepared();
+  const signedVersion=e.signedAgreementVersion;
+  const snapshot=structuredClone(e.signedTermsSnapshot);
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,vesselName:'Changed after signature'}),/new agreement version and a new customer signature/);
+  assert.throws(()=>choosePlan(e,'Dock Watch','Weekly','Monthly'),/new agreement version and a new customer signature/);
+  assert.equal(e.questionnaire.vesselName,'S/V Test Current');
+  assert.equal(e.signedAgreementVersion,signedVersion);
+  assert.deepEqual(e.signedTermsSnapshot,snapshot);
+  assert.equal(assertEnrollmentConsistency(e),true);
+});
+
+test('successful payment locks signed terms and repeated checkout',()=>{
+  const e=prepared();simulatePayment(e,'succeeded',new Date('2026-11-14T20:00:00Z'));
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,vesselName:'Late edit'}),/new agreement version/);
+  assert.throws(()=>choosePlan(e,'Dock Watch','Weekly','Monthly'),/new agreement version/);
+  assert.throws(()=>simulatePayment(e,'succeeded'),/already recorded/);
+  assert.equal(e.hycDecision,'review_pending');
+  assert.equal(assertEnrollmentConsistency(e),true);
+});
+
+test('HYC final decision blocks customer changes, another payment, and reopening the decision',()=>{
+  const e=prepared();simulatePayment(e,'succeeded');decideEnrollment(e,'decline');
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,vesselName:'Reopened'}),/new agreement version/);
+  assert.throws(()=>choosePlan(e,'Dock Watch','Weekly','Monthly'),/new agreement version/);
+  assert.throws(()=>simulatePayment(e,'succeeded'),/already recorded/);
+  assert.throws(()=>decideEnrollment(e,'accept'),/Only a paid customer-signed enrollment can be reviewed/);
+  assert.equal(e.hycDecision,'declined');
+  assert.equal(e.paymentStatus,'canceled_simulated');
+  assert.equal(e.refundStatus,'manual_refund_pending');
+  assert.equal(assertEnrollmentConsistency(e),true);
+});
+
+test('state invariant catches changed data behind a customer signature',()=>{
+  const e=prepared();e.selection.amount+=1;
+  assert.throws(()=>assertEnrollmentConsistency(e),/Signed terms changed/);
 });
