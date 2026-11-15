@@ -1,0 +1,29 @@
+{
+  "notice": "EXPECTED STRUCTURE ONLY — IDs and labels must be copied and reviewed from the actual synthetic SignWell template before provider mode is enabled.",
+  "customer": { "id": "1", "placeholderId": "<SignWell Customer placeholder ID>", "name": "Customer", "signingOrder": 1 },
+  "hyc": { "id": "2", "placeholderId": "<SignWell HYC placeholder ID>", "name": "HYC Representative", "signingOrder": 2 },
+  "fields": {
+    "owner_name": { "apiId": "<API ID>", "label": "Owner" },
+    "contracting_business": { "apiId": "<API ID>", "label": "Contracting business" },
+    "signer_name": { "apiId": "<API ID>", "label": "Person signing" },
+    "owner_email": { "apiId": "<API ID>", "label": "Owner email" },
+    "vessel_name": { "apiId": "<API ID>", "label": "Vessel name" },
+    "vessel_model": { "apiId": "<API ID>", "label": "Vessel model" },
+    "vessel_length": { "apiId": "<API ID>", "label": "Vessel length" },
+    "vessel_value": { "apiId": "<API ID>", "label": "Approximate vessel value" },
+    "hin_or_registration": { "apiId": "<API ID>", "label": "HIN or registration" },
+    "plan": { "apiId": "<API ID>", "label": "Plan" },
+    "visit_frequency": { "apiId": "<API ID>", "label": "Visit frequency" },
+    "billing_cadence": { "apiId": "<API ID>", "label": "Billing cadence" },
+    "price": { "apiId": "<API ID>", "label": "Simulated price" },
+    "included_activity": { "apiId": "<API ID>", "label": "Included activity" },
+    "emergency_spending_authority": { "apiId": "<API ID>", "label": "Emergency spending authority" },
+    "agreement_version": { "apiId": "<API ID>", "label": "Agreement version" },
+    "agreement_notice": { "apiId": "<API ID>", "label": "Agreement status notice" }
+  },
+  "signatureFields": [
+    { "placeholderName": "Customer", "type": "signature", "required": true, "preSigned": false },
+    { "placeholderName": "HYC Representative", "type": "signature", "required": true, "preSigned": false },
+    { "placeholderName": "Customer", "type": "initials", "required": false, "preSigned": false }
+  ]
+}
