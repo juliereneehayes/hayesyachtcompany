@@ -28,7 +28,9 @@ The captain review card retains the original invitation's **Copy Invitation Link
 
 Customers can use Back controls before signing. Saved questionnaire and plan choices are prefilled. Material questionnaire changes clear the unsigned plan so its eligibility and price can be recalculated. After signing, the customer can review the agreement read-only; changing signed terms requires a new version and signature. Server-side checks also lock customer edits and payment actions after payment or a final HYC decision.
 
-The vessel-value field accepts numeric dollars, comma-grouped values, an optional `$`, and `k` / `m` shorthand (for example `850k`, `1m`, or `1.5m`). The server validates and stores a positive numeric USD amount; review displays format it as currency. There is no enrollment-form value ceiling. Values above $1,500,000 continue to require HYC's internal eligibility review under the unchanged proposed §11.2.
+The vessel-value field accepts numeric dollars, comma-grouped values, an optional `$`, and common `k` / `m` shorthand (for example `850k`, `850 thousand`, `1 mil`, or `1.5 million`). The server validates and stores a positive numeric USD amount; review displays format it as currency. There is no enrollment-form value ceiling. Values above $1,500,000 continue to require HYC's internal eligibility review under the unchanged proposed §11.2.
+
+The captain queue and review card show one human-readable primary workflow status, derived from the independent agreement, payment, HYC decision, and service-readiness state. Examples include **Awaiting customer**, **Payment pending**, **Needs HYC review**, **Setup in progress**, **Ready to schedule**, and **Refund action needed**. Supporting text distinguishes payment receipt from HYC acceptance and setup readiness.
 
 ### Short questionnaire field mapping
 
@@ -62,7 +64,7 @@ cd prototype/signwell-phase2
 npm test
 ```
 
-The Phase 2 tests cover invitation recovery and duplicate prevention, saved progress on reopen, questionnaire field mappings and defaults, back/edit UI behavior, material plan invalidation, signed and paid state locks, customer-sign-before-payment ordering, duplicate-payment prevention, monthly/annual date anchors (including month-end/leap-day handling), pricing validation, HYC accept/decline, manual refund state, and post-acceptance readiness gates. All records disappear when the server restarts.
+The Phase 2 tests cover invitation recovery and duplicate prevention, primary workflow status mappings, currency parsing and eligibility classification, validation-error clearing through the simulated payment flow, saved progress on reopen, questionnaire field mappings and defaults, back/edit UI behavior, material plan invalidation, signed and paid state locks, customer-sign-before-payment ordering, duplicate-payment prevention, monthly/annual date anchors (including month-end/leap-day handling), pricing validation, HYC accept/decline, manual refund state, and post-acceptance readiness gates. All records disappear when the server restarts.
 
 ## Boundaries
 

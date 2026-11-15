@@ -24,13 +24,42 @@ export function getPrice(plan, cadence, loa) {
 
 export function parseVesselValue(input) {
   const text = String(input ?? '').trim();
-  const match = text.match(/^\$?\s*((?:\d+(?:\.\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?))\s*([km]?)$/i);
-  if (!match) throw new Error('Enter a valid positive vessel value, such as 1,000,000 or 1.5m.');
+  const match = text.match(/^\$?\s*((?:\d+(?:\.\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?))\s*(million|thousand|mil|m|k)?$/i);
+  if (!match) throw new Error("I couldn't understand that vessel value. Enter a positive amount such as 850,000, 850k, or 1.5 million.");
   const base = Number(match[1].replaceAll(',', ''));
-  const multiplier = match[2].toLowerCase() === 'm' ? 1_000_000 : match[2].toLowerCase() === 'k' ? 1_000 : 1;
+  const suffix = (match[2] || '').toLowerCase();
+  const multiplier = ['m','mil','million'].includes(suffix) ? 1_000_000 : ['k','thousand'].includes(suffix) ? 1_000 : 1;
   const amount = Math.round(base * multiplier * 100) / 100;
-  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid positive vessel value, such as 1,000,000 or 1.5m.');
+  if (!Number.isFinite(amount) || amount <= 0 || !Number.isSafeInteger(Math.round(amount * 100))) throw new Error("I couldn't understand that vessel value. Enter a positive amount such as 850,000, 850k, or 1.5 million.");
   return amount;
+}
+
+export function getWorkflowStatus(e) {
+  const closed = ['canceled','cancelled','expired','closed','abandoned'].includes(String(e.enrollmentStatus || '').toLowerCase()) || ['declined','expired'].includes(e.agreementStatus) || e.paymentStatus === 'canceled_simulated';
+  if (e.hycDecision === 'declined' || (e.refundStatus === 'manual_refund_pending' && e.paymentStatus === 'canceled_simulated')) {
+    if (e.refundStatus === 'manual_refund_pending') return { label:'Refund action needed', detail:e.hycDecision === 'declined' ? 'HYC declined after payment; the manual refund is still outstanding.' : 'A manual refund is outstanding; verify the HYC decision before closing the record.' };
+    if (['manual_refund_completed','completed'].includes(e.refundStatus)) return { label:'Closed', detail:'HYC declined and refund follow-up is marked complete; the enrollment is closed.' };
+    return { label:'Closed', detail:'HYC declined this enrollment. Confirm refund follow-up before closing the record.' };
+  }
+  if (closed) return { label:'Closed', detail:'This enrollment is canceled, expired, abandoned, or otherwise closed; verify any payment follow-up.' };
+  if (e.hycDecision === 'accepted') {
+    if (e.serviceReadiness === 'scheduled' || e.firstVisit) return { label:'Scheduled', detail:'HYC accepted and countersigned; the initial service visit is scheduled.' };
+    if (e.serviceReadiness === 'ready_to_schedule' || (e.boatBinder && e.operationalOnboarding)) return { label:'Ready to schedule', detail:'HYC accepted and required setup is complete; the initial visit is not yet scheduled.' };
+    if (['boat_binder_pending','operational_onboarding_pending','not_started'].includes(e.serviceReadiness)) return { label:'Setup in progress', detail:'HYC accepted and countersigned; operational setup is not complete.' };
+    return { label:'Setup in progress', detail:'HYC accepted; service-readiness state needs a manual check.' };
+  }
+  if (e.paymentStatus === 'succeeded') {
+    if (e.hycDecision === 'review_pending') return { label:'Needs HYC review', detail:'Payment received; the agreement is awaiting HYC review and countersignature. Service is not ready.' };
+    return { label:'Needs HYC review', detail:'Payment received; the HYC decision state needs manual review. Do not treat this enrollment as accepted or service-ready.' };
+  }
+  if (e.agreementStatus === 'customer_signed') {
+    const detail = e.paymentStatus === 'failed' ? 'Customer signed; the last checkout attempt failed and can be retried.' : e.paymentStatus === 'abandoned' ? 'Customer signed; checkout was abandoned and can be resumed.' : 'Customer signed; initial payment has not completed.';
+    return { label:'Payment pending', detail };
+  }
+  if (e.agreementStatus === 'awaiting_customer' && e.selection) return { label:'Awaiting customer signature', detail:'Plan and agreement are ready for the customer to review and sign.' };
+  if (e.questionnaire || e.selection) return { label:'Enrollment in progress', detail:'Customer details are underway; plan or agreement review remains.' };
+  if (e.hycDecision === 'not_reviewed' && e.paymentStatus === 'not_started') return { label:'Awaiting customer', detail:'Invitation created; waiting for customer details.' };
+  return { label:'Enrollment in progress', detail:'Enrollment is underway; review details before advancing it.' };
 }
 
 export function createEnrollment(input = {}) {
@@ -199,7 +228,7 @@ async function readBody(req) {
   return body ? JSON.parse(body) : {};
 }
 function send(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','content-length':Buffer.byteLength(body),'x-content-type-options':'nosniff'});res.end(body);}
-function publicEnrollment(e){const {inviteToken,...safe}=e;return {...structuredClone(safe),inviteUrl:inviteToken?`/customer.html?invite=${encodeURIComponent(inviteToken)}`:null};}
+function publicEnrollment(e){const {inviteToken,...safe}=e;return {...structuredClone(safe),workflowStatus:getWorkflowStatus(e),inviteUrl:inviteToken?`/customer.html?invite=${encodeURIComponent(inviteToken)}`:null};}
 
 export function createInvitation(){
   const token=randomBytes(24).toString('base64url');
