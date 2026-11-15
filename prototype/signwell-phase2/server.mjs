@@ -32,6 +32,7 @@ export function createEnrollment(input = {}) {
     serviceReadiness: 'not_started', questionnaire: null, selection: null,
     signedAt: null, paidAt: null, nextBillingAt: null, refundStatus: 'not_applicable',
     agreementVersion: 0, signedAgreementVersion: null, signedTermsSnapshot: null,
+    eligibilityReview: 'not_required',
     signers: { customer: 'pending', captainWill: 'not_requested' },
     ...input,
   };
@@ -48,6 +49,7 @@ export function assertEnrollmentConsistency(e) {
   if (e.signedAt && (JSON.stringify(e.signedTermsSnapshot.questionnaire) !== JSON.stringify(e.questionnaire) || JSON.stringify(e.signedTermsSnapshot.selection) !== JSON.stringify(e.selection))) throw new Error('Signed terms changed after customer signature.');
   if (e.paymentStatus === 'succeeded' && (!e.signedAt || !e.paidAt || !['review_pending','accepted'].includes(e.hycDecision))) throw new Error('Payment state is inconsistent with signature or HYC review.');
   if (e.hycDecision === 'accepted' && (e.paymentStatus !== 'succeeded' || e.agreementStatus !== 'fully_executed_simulated' || e.signers.captainWill !== 'signed_simulated')) throw new Error('HYC acceptance state is inconsistent.');
+  if (e.hycDecision === 'accepted' && Number(e.questionnaire?.value) > 1_500_000 && !['reviewed_eligible','exception_approved'].includes(e.eligibilityReview)) throw new Error('Above-threshold vessel acceptance lacks eligibility review.');
   if (e.hycDecision === 'declined' && (!e.paidAt || e.paymentStatus !== 'canceled_simulated' || e.refundStatus !== 'manual_refund_pending' || e.signers.captainWill !== 'declined')) throw new Error('HYC decline state is inconsistent.');
   return true;
 }
@@ -60,7 +62,7 @@ export function applyQuestionnaire(enrollment, data) {
   const loa = Number(data.loa);
   const value = Number(data.value);
   if (!Number.isFinite(loa) || loa < 30 || loa > 60) throw new Error('Vessel length must be between 30 and 60 feet.');
-  if (!Number.isFinite(value) || value <= 0 || value > 1_500_000) throw new Error('Vessel value must be at most $1,500,000.');
+  if (!Number.isFinite(value) || value <= 0) throw new Error('Vessel value must be a valid positive number.');
   if (data.emergencyCap !== undefined && data.emergencyCap !== '' && (!Number.isFinite(Number(data.emergencyCap)) || Number(data.emergencyCap) < 0)) throw new Error('Emergency spending cap must be zero or a positive amount.');
   if (data.accessCode || data.password || data.alarmPin) throw new Error('Do not submit access codes or passwords in this form.');
   enrollment.questionnaire = Object.fromEntries(required.map(k => [k, String(data[k]).trim()]));
@@ -68,6 +70,8 @@ export function applyQuestionnaire(enrollment, data) {
   enrollment.questionnaire.hin = String(data.hin || '').trim();
   enrollment.questionnaire.requestedChecks = Array.isArray(data.requestedChecks) ? data.requestedChecks.map(String).slice(0,10) : [];
   enrollment.questionnaire.emergencyCap = Math.max(0, Number(data.emergencyCap) || 0);
+  // §11.2 remains a separate HYC eligibility review; it is not an enrollment-form cap.
+  enrollment.eligibilityReview = value > 1_500_000 ? 'review_required' : 'not_required';
   enrollment.agreementVersion += 1;
   enrollment.agreementStatus = 'awaiting_customer';
   enrollment.updatedAt = new Date().toISOString();
@@ -132,6 +136,7 @@ export function addAnniversary(date, months) {
 export function decideEnrollment(enrollment, decision) {
   if (enrollment.paymentStatus !== 'succeeded' || enrollment.agreementStatus !== 'customer_signed' || enrollment.hycDecision !== 'review_pending') throw new Error('Only a paid customer-signed enrollment can be reviewed.');
   if (decision === 'accept') {
+    if (enrollment.eligibilityReview === 'review_required') throw new Error('Review the vessel eligibility threshold or approve a documented exception before acceptance.');
     enrollment.hycDecision = 'accepted';
     enrollment.signers.captainWill = 'signed_simulated';
     enrollment.agreementStatus = 'fully_executed_simulated';
@@ -146,6 +151,15 @@ export function decideEnrollment(enrollment, decision) {
   } else throw new Error('Choose accept or decline.');
   enrollment.updatedAt = new Date().toISOString();
   assertEnrollmentConsistency(enrollment);
+  return enrollment;
+}
+
+export function reviewEligibility(enrollment, disposition) {
+  if (enrollment.paymentStatus !== 'succeeded' || enrollment.hycDecision !== 'review_pending') throw new Error('Eligibility review is available after successful payment while HYC acceptance is pending.');
+  if (Number(enrollment.questionnaire?.value) <= 1_500_000) throw new Error('This vessel does not require an above-threshold eligibility review.');
+  if (!['reviewed_eligible','exception_approved'].includes(disposition)) throw new Error('Choose reviewed eligible or approved exception.');
+  enrollment.eligibilityReview = disposition;
+  enrollment.updatedAt = new Date().toISOString();
   return enrollment;
 }
 
@@ -200,10 +214,11 @@ export function createAppServer() {
           return send(res,200,publicEnrollment(e));
         } catch(error){return send(res,409,{error:error.message});}
       }
-      const adminMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)(?:\/(decision|readiness))?$/);
+      const adminMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)(?:\/(decision|readiness|eligibility))?$/);
       if(adminMatch){const e=enrollments.get(adminMatch[1]);if(!e)return send(res,404,{error:'Enrollment not found.'});
         if(req.method==='GET'&&!adminMatch[2])return send(res,200,publicEnrollment(e));
         if(req.method==='POST'&&adminMatch[2]==='decision'){const b=await readBody(req);try{decideEnrollment(e,b.decision);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
+        if(req.method==='POST'&&adminMatch[2]==='eligibility'){const b=await readBody(req);try{reviewEligibility(e,b.disposition);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
         if(req.method==='POST'&&adminMatch[2]==='readiness'){const b=await readBody(req);try{updateReadiness(e,b.step,b.done);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
       }
       if(req.method==='GET'){

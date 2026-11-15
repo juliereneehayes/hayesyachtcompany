@@ -26,6 +26,8 @@ Open <http://127.0.0.1:4180>. The app binds to loopback only. It shows the local
 
 The one customer session ends after payment. Captain Will's later review is a separate local step. Both entry-path labels are represented in the data model, but this phase exposes only captain-created invitations; there is no public self-service entry point.
 
+The customer may enter any valid positive vessel value. Values above $1,500,000 are flagged in Captain Will's review because the separate proposed agreement §11.2 has a $1.5M eligibility threshold; they are not blocked from continuing the customer flow. Before HYC acceptance, Will must mark the vessel reviewed eligible or record an approved exception. The prototype does not change §11.2.
+
 ## Checks
 
 Run the retained static-site harness from the repository root:

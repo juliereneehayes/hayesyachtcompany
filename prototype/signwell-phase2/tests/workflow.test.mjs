@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, decideEnrollment, getPrice, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
+import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, decideEnrollment, getPrice, reviewEligibility, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
 
 const questionnaire = {
   ownerName:'Riley Example',signerAuthority:'Owner',confirmAuthority:'on',insuranceConfirmed:'on',ownerEmail:'riley@example.com',ownerPhone:'555-0101',reportEmail:'riley@example.com',
@@ -103,4 +103,28 @@ test('HYC final decision blocks customer changes, another payment, and reopening
 test('state invariant catches changed data behind a customer signature',()=>{
   const e=prepared();e.selection.amount+=1;
   assert.throws(()=>assertEnrollmentConsistency(e),/Signed terms changed/);
+});
+
+test('above-threshold vessel value completes customer enrollment and requires HYC eligibility review',()=>{
+  const e=createEnrollment();
+  applyQuestionnaire(e,{...questionnaire,value:'1750000'});
+  assert.equal(e.questionnaire.value,'1750000');
+  assert.equal(e.eligibilityReview,'review_required');
+  choosePlan(e,'Dock Watch','Monthly','Monthly');
+  signAsCustomer(e);
+  simulatePayment(e,'succeeded',new Date('2026-11-14T20:00:00Z'));
+  assert.equal(e.paymentStatus,'succeeded');
+  assert.equal(e.hycDecision,'review_pending');
+  assert.throws(()=>decideEnrollment(e,'accept'),/Review the vessel eligibility threshold/);
+  reviewEligibility(e,'reviewed_eligible');
+  decideEnrollment(e,'accept');
+  assert.equal(e.hycDecision,'accepted');
+  assert.equal(e.agreementStatus,'fully_executed_simulated');
+  assert.equal(assertEnrollmentConsistency(e),true);
+});
+
+test('vessel value still must be finite and positive',()=>{
+  const e=createEnrollment();
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'0'}),/valid positive number/);
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'not-a-number'}),/valid positive number/);
 });
