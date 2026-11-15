@@ -22,6 +22,17 @@ export function getPrice(plan, cadence, loa) {
   return { monthly, annual: Math.round(monthly * 12 * 0.9 * 100) / 100 };
 }
 
+export function parseVesselValue(input) {
+  const text = String(input ?? '').trim();
+  const match = text.match(/^\$?\s*((?:\d+(?:\.\d{1,2})?|\d{1,3}(?:,\d{3})+(?:\.\d{1,2})?))\s*([km]?)$/i);
+  if (!match) throw new Error('Enter a valid positive vessel value, such as 1,000,000 or 1.5m.');
+  const base = Number(match[1].replaceAll(',', ''));
+  const multiplier = match[2].toLowerCase() === 'm' ? 1_000_000 : match[2].toLowerCase() === 'k' ? 1_000 : 1;
+  const amount = Math.round(base * multiplier * 100) / 100;
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Enter a valid positive vessel value, such as 1,000,000 or 1.5m.');
+  return amount;
+}
+
 export function createEnrollment(input = {}) {
   const now = new Date().toISOString();
   const id = randomUUID();
@@ -60,12 +71,12 @@ export function applyQuestionnaire(enrollment, data) {
   for (const key of required) if (!String(data?.[key] ?? '').trim()) throw new Error(`Please complete ${key}.`);
   if (data.confirmAuthority !== 'on' || data.insuranceConfirmed !== 'on') throw new Error('Confirm signer authority and current insurance before continuing.');
   const loa = Number(data.loa);
-  const value = Number(data.value);
+  const value = parseVesselValue(data.value);
   if (!Number.isFinite(loa) || loa < 30 || loa > 60) throw new Error('Vessel length must be between 30 and 60 feet.');
-  if (!Number.isFinite(value) || value <= 0) throw new Error('Vessel value must be a valid positive number.');
   if (data.accessCode || data.password || data.alarmPin) throw new Error('Do not submit access codes or passwords in this form.');
   const previous = enrollment.questionnaire;
   const next = Object.fromEntries(required.map(k => [k, String(data[k]).trim()]));
+  next.value = value;
   next.businessName = String(data.businessName || '').trim();
   next.signerTitle = String(data.signerTitle || '').trim();
   next.hazards = String(data.hazards || '').trim();

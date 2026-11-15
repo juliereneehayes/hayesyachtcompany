@@ -28,13 +28,15 @@ The captain review card retains the original invitation's **Copy Invitation Link
 
 Customers can use Back controls before signing. Saved questionnaire and plan choices are prefilled. Material questionnaire changes clear the unsigned plan so its eligibility and price can be recalculated. After signing, the customer can review the agreement read-only; changing signed terms requires a new version and signature. Server-side checks also lock customer edits and payment actions after payment or a final HYC decision.
 
+The vessel-value field accepts numeric dollars, comma-grouped values, an optional `$`, and `k` / `m` shorthand (for example `850k`, `1m`, or `1.5m`). The server validates and stores a positive numeric USD amount; review displays format it as currency. There is no enrollment-form value ceiling. Values above $1,500,000 continue to require HYC's internal eligibility review under the unchanged proposed §11.2.
+
 ### Short questionnaire field mapping
 
 | Collected field | Prototype mapping |
 |---|---|
 | Owner Name; optional Business Name; signer name/title | `questionnaire.ownerName`, `businessName`, `signerName`, `signerTitle` |
 | Owner email and phone | `ownerEmail`, `ownerPhone`; `reportEmail` defaults to `ownerEmail` internally |
-| Vessel name/model, length, value, HIN or registration | `vesselName`, `vesselModel`, `loa`, `value`, `hin`; HIN/registration is required |
+| Vessel name/model, length, value, HIN or registration | `vesselName`, `vesselModel`, `loa`, normalized numeric USD `value`, `hin`; HIN/registration is required |
 | Marina, slip, insurer, policy expiry | `marina`, `slip`, `insurer`, `policyExpiry` |
 | Emergency contact and access limitations / hazards | `emergencyName`, `emergencyPhone`, `hazards`; synthetic emergency spending authority remains $0 |
 | Ownership / authority and insurance confirmations | Required attestations `confirmAuthority` and `insuranceConfirmed` |

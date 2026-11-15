@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, createInvitation, decideEnrollment, getInvitationEnrollment, getPrice, listEnrollments, reviewEligibility, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
+import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, createInvitation, decideEnrollment, getInvitationEnrollment, getPrice, listEnrollments, parseVesselValue, reviewEligibility, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
 
 const questionnaire = {
   ownerName:'Riley Example',signerName:'Riley Example',signerTitle:'',businessName:'',confirmAuthority:'on',insuranceConfirmed:'on',ownerEmail:'riley@example.com',ownerPhone:'555-0101',
@@ -109,7 +109,7 @@ test('state invariant catches changed data behind a customer signature',()=>{
 test('above-threshold vessel value completes customer enrollment and requires HYC eligibility review',()=>{
   const e=createEnrollment();
   applyQuestionnaire(e,{...questionnaire,value:'1750000'});
-  assert.equal(e.questionnaire.value,'1750000');
+  assert.equal(e.questionnaire.value,1_750_000);
   assert.equal(e.eligibilityReview,'review_required');
   choosePlan(e,'Dock Watch','Monthly','Monthly');
   signAsCustomer(e);
@@ -126,8 +126,30 @@ test('above-threshold vessel value completes customer enrollment and requires HY
 
 test('vessel value still must be finite and positive',()=>{
   const e=createEnrollment();
-  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'0'}),/valid positive number/);
-  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'not-a-number'}),/valid positive number/);
+  for (const value of ['0','-1','$-1','not-a-number','1,00,000','1.5,000','1e6','1..5m','1.000']) {
+    assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value}),/valid positive vessel value/);
+  }
+});
+
+test('currency shorthand normalizes to positive USD numbers and drives HYC eligibility review',()=>{
+  const values=[['1000000',1_000_000],['1,000,000',1_000_000],['$1,000,000',1_000_000],['850k',850_000],['1m',1_000_000],['1.5m',1_500_000],['1.5M',1_500_000]];
+  for (const [input,expected] of values) {
+    const e=createEnrollment();applyQuestionnaire(e,{...questionnaire,value:input});
+    assert.equal(Number(e.questionnaire.value),expected);
+    assert.equal(e.eligibilityReview,expected>1_500_000?'review_required':'not_required');
+  }
+  assert.equal(parseVesselValue('1.75m'),1_750_000);
+  const above=createEnrollment();applyQuestionnaire(above,{...questionnaire,value:'1.75m'});
+  assert.equal(above.questionnaire.value,1_750_000);
+  assert.equal(above.eligibilityReview,'review_required');
+});
+
+test('individual owner can differ from the explicitly identified agreement signer',()=>{
+  const e=createEnrollment();
+  applyQuestionnaire(e,{...questionnaire,ownerName:'Harbor Holdings LLC',businessName:'Harbor Holdings LLC',signerName:'Jordan Example'});
+  assert.equal(e.questionnaire.ownerName,'Harbor Holdings LLC');
+  assert.equal(e.questionnaire.businessName,'Harbor Holdings LLC');
+  assert.equal(e.questionnaire.signerName,'Jordan Example');
 });
 
 test('invitation link is recoverable after reload and reopens the same enrollment',()=>{
@@ -146,9 +168,10 @@ test('invitation link is recoverable after reload and reopens the same enrollmen
 test('material unsigned questionnaire edits invalidate plan and require plan recalculation',()=>{
   const e=createEnrollment();applyQuestionnaire(e,questionnaire);choosePlan(e,'Dock Watch','Monthly','Monthly');
   assert.equal(e.selection.monthlyEquivalent,129);
-  applyQuestionnaire(e,{...questionnaire,loa:'45',value:'1750000'});
+  applyQuestionnaire(e,{...questionnaire,loa:'45',value:'1.75m'});
   assert.equal(e.selection,null);
   assert.equal(e.questionnaire.ownerName,'Riley Example');
+  assert.equal(e.questionnaire.value,1_750_000);
   assert.equal(e.eligibilityReview,'review_required');
   choosePlan(e,'Dock Watch','Monthly','Monthly');
   assert.equal(e.selection.monthlyEquivalent,149);
@@ -182,8 +205,19 @@ test('customer screen keeps back navigation, saved field values, and removes obs
   assert.doesNotMatch(app,/Report email|reportEmail','|Emergency spending cap \(\$0 if blank\)|requestedChecks/);
   assert.match(app,/HIN \/ Registration Number/);
   assert.match(app,/I confirm I own the vessel or am authorized to enter into this agreement on the owner's behalf\./);
-  assert.match(app,/Do not enter access codes, alarm PINs, passwords, payment card data, or real customer information\.<\/div>\$\{field\('hazards'/);
+  assert.match(app,/\$\{field\('hazards'[\s\S]*?Do not enter access codes, alarm PINs, passwords, payment card data, or real customer information\.<\/div>[\s\S]*?name="confirmAuthority"/);
   assert.match(app,/Open Customer View/);
   assert.match(app,/Copy Invitation Link/);
   assert.match(app,/\/api\/invites\/\$\{encodeURIComponent\(inviteToken\)\}/);
+  assert.match(app,/type="text" inputmode="decimal"/);
+  assert.match(app,/class="currency-input"><span aria-hidden="true">\$<\/span>/);
+  assert.match(app,/Number\(current\)\.toLocaleString\('en-US'/);
+  assert.match(app,/formatUsd\(q\.value\)/);
+  assert.match(app,/<h3>Owner &amp; Contact<\/h3>/);
+  assert.match(app,/<h3>Vessel &amp; Location<\/h3>/);
+  assert.match(app,/<h3>Insurance<\/h3>/);
+  assert.match(app,/<h3>Emergency Contact<\/h3>/);
+  assert.match(app,/Access limitations, hazards, and do-not-operate notes[\s\S]*?real customer information\.[\s\S]*?name="confirmAuthority"/);
+  assert.match(app,/owner\.addEventListener\('input',[\s\S]*?signer\.value=owner\.value/);
+  assert.doesNotMatch(app,/id="value"[^>]*max=/);
 });
