@@ -72,3 +72,7 @@ The Phase 2 tests cover invitation recovery and duplicate prevention, primary wo
 - Payment buttons update a local mock only. No Stripe SDK or endpoint is used.
 - No production SignWell or external invitation delivery. Phase 1 Test Mode safeguards remain documented and unchanged; the Phase 2 journey deliberately uses local signing simulation.
 - Section 10.4 remains unchanged in the separate legal review draft. Date relationship and HYC acceptance/refund terms require counsel review before customer use.
+
+## Phase 3 SignWell Test Mode
+
+The optional Test Mode integration is documented in [README_PHASE3.md](README_PHASE3.md). Mock mode is still the default. Provider mode requires a local Test Mode API key and the IDs from a reviewed synthetic template; no account credentials or reviewed template were available when Phase 3 was implemented, so no live provider calls have been made. Do not use the Phase 3 path with real names, customer emails, vessel data, agreements, or payment methods.
