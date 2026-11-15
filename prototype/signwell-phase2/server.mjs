@@ -56,22 +56,27 @@ export function assertEnrollmentConsistency(e) {
 
 export function applyQuestionnaire(enrollment, data) {
   assertTermsEditable(enrollment);
-  const required = ['ownerName','signerAuthority','confirmAuthority','insuranceConfirmed','ownerEmail','ownerPhone','vesselName','vesselModel','loa','value','marina','slip','insurer','policyExpiry','emergencyName','emergencyPhone','reportEmail'];
+  const required = ['ownerName','signerName','confirmAuthority','insuranceConfirmed','ownerEmail','ownerPhone','vesselName','vesselModel','loa','value','hin','marina','slip','insurer','policyExpiry','emergencyName','emergencyPhone'];
   for (const key of required) if (!String(data?.[key] ?? '').trim()) throw new Error(`Please complete ${key}.`);
   if (data.confirmAuthority !== 'on' || data.insuranceConfirmed !== 'on') throw new Error('Confirm signer authority and current insurance before continuing.');
   const loa = Number(data.loa);
   const value = Number(data.value);
   if (!Number.isFinite(loa) || loa < 30 || loa > 60) throw new Error('Vessel length must be between 30 and 60 feet.');
   if (!Number.isFinite(value) || value <= 0) throw new Error('Vessel value must be a valid positive number.');
-  if (data.emergencyCap !== undefined && data.emergencyCap !== '' && (!Number.isFinite(Number(data.emergencyCap)) || Number(data.emergencyCap) < 0)) throw new Error('Emergency spending cap must be zero or a positive amount.');
   if (data.accessCode || data.password || data.alarmPin) throw new Error('Do not submit access codes or passwords in this form.');
-  enrollment.questionnaire = Object.fromEntries(required.map(k => [k, String(data[k]).trim()]));
-  enrollment.questionnaire.hazards = String(data.hazards || '').trim();
-  enrollment.questionnaire.hin = String(data.hin || '').trim();
-  enrollment.questionnaire.requestedChecks = Array.isArray(data.requestedChecks) ? data.requestedChecks.map(String).slice(0,10) : [];
-  enrollment.questionnaire.emergencyCap = Math.max(0, Number(data.emergencyCap) || 0);
+  const previous = enrollment.questionnaire;
+  const next = Object.fromEntries(required.map(k => [k, String(data[k]).trim()]));
+  next.businessName = String(data.businessName || '').trim();
+  next.signerTitle = String(data.signerTitle || '').trim();
+  next.hazards = String(data.hazards || '').trim();
+  next.reportEmail = next.ownerEmail;
+  next.emergencyCap = 0;
+  const materialKeys = ['ownerName','businessName','signerName','signerTitle','ownerEmail','ownerPhone','insuranceConfirmed','vesselName','vesselModel','loa','value','hin','marina','slip','insurer','policyExpiry','emergencyName','emergencyPhone','hazards'];
+  const materialChanged = Boolean(previous && materialKeys.some(k => String(previous[k] ?? '') !== String(next[k] ?? '')));
+  enrollment.questionnaire = next;
   // §11.2 remains a separate HYC eligibility review; it is not an enrollment-form cap.
   enrollment.eligibilityReview = value > 1_500_000 ? 'review_required' : 'not_required';
+  if (materialChanged && enrollment.selection) enrollment.selection = null;
   enrollment.agreementVersion += 1;
   enrollment.agreementStatus = 'awaiting_customer';
   enrollment.updatedAt = new Date().toISOString();
@@ -183,28 +188,35 @@ async function readBody(req) {
   return body ? JSON.parse(body) : {};
 }
 function send(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','content-length':Buffer.byteLength(body),'x-content-type-options':'nosniff'});res.end(body);}
-function publicEnrollment(e){ return structuredClone(e); }
+function publicEnrollment(e){const {inviteToken,...safe}=e;return {...structuredClone(safe),inviteUrl:inviteToken?`/customer.html?invite=${encodeURIComponent(inviteToken)}`:null};}
+
+export function createInvitation(){
+  const token=randomBytes(24).toString('base64url');
+  const enrollment=createEnrollment({inviteToken:token});
+  invites.set(token,enrollment.id);enrollments.set(enrollment.id,enrollment);
+  return {id:enrollment.id,inviteUrl:publicEnrollment(enrollment).inviteUrl,entryPath:enrollment.entryPath};
+}
+
+export function getInvitationEnrollment(token){const id=invites.get(token);return id?enrollments.get(id)||null:null;}
+export function listEnrollments(){return [...enrollments.values()].map(publicEnrollment);}
 
 export function createAppServer() {
   return createServer(async (req,res) => {
     try {
       const url = new URL(req.url,'http://127.0.0.1');
       if (req.method === 'POST' && url.pathname === '/api/admin/invitations') {
-        const token = randomBytes(24).toString('base64url');
-        const e = createEnrollment();
-        invites.set(token,e.id); enrollments.set(e.id,e);
-        return send(res,201,{id:e.id,inviteUrl:`/customer.html?invite=${token}`,entryPath:e.entryPath});
+        return send(res,201,createInvitation());
       }
-      if (req.method === 'GET' && url.pathname === '/api/admin/enrollments') return send(res,200,[...enrollments.values()].map(publicEnrollment));
+      if (req.method === 'GET' && url.pathname === '/api/admin/enrollments') return send(res,200,listEnrollments());
       const inviteMatch = url.pathname.match(/^\/api\/invites\/([\w-]+)$/);
       if (inviteMatch && req.method === 'GET') {
-        const id=invites.get(inviteMatch[1]); const e=enrollments.get(id);
+        const e=getInvitationEnrollment(inviteMatch[1]);
         if(!e)return send(res,404,{error:'Invitation not found. Ask HYC for a new local invite.'});
         return send(res,200,publicEnrollment(e));
       }
       const customerMatch = url.pathname.match(/^\/api\/invites\/([\w-]+)\/(questionnaire|plan|sign|payment)$/);
       if(customerMatch && req.method==='POST'){
-        const id=invites.get(customerMatch[1]); const e=enrollments.get(id); if(!e)return send(res,404,{error:'Invitation not found.'});
+        const e=getInvitationEnrollment(customerMatch[1]); if(!e)return send(res,404,{error:'Invitation not found.'});
         const body=await readBody(req); const action=customerMatch[2];
         try {
           if(action==='questionnaire')applyQuestionnaire(e,body);

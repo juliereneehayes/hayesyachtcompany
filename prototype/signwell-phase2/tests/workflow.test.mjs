@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, decideEnrollment, getPrice, reviewEligibility, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
+import { readFile } from 'node:fs/promises';
+import { addAnniversary, applyQuestionnaire, assertEnrollmentConsistency, choosePlan, createEnrollment, createInvitation, decideEnrollment, getInvitationEnrollment, getPrice, listEnrollments, reviewEligibility, signAsCustomer, simulatePayment, updateReadiness } from '../server.mjs';
 
 const questionnaire = {
-  ownerName:'Riley Example',signerAuthority:'Owner',confirmAuthority:'on',insuranceConfirmed:'on',ownerEmail:'riley@example.com',ownerPhone:'555-0101',reportEmail:'riley@example.com',
+  ownerName:'Riley Example',signerName:'Riley Example',signerTitle:'',businessName:'',confirmAuthority:'on',insuranceConfirmed:'on',ownerEmail:'riley@example.com',ownerPhone:'555-0101',
   vesselName:'S/V Test Current',vesselModel:'2018 Example 32',loa:'36',value:'250000',hin:'EXAMPLE-HIN',marina:'Test Marina',slip:'A-10',insurer:'Example Marine',policyExpiry:'2027-10-01',
-  emergencyName:'Casey Example',emergencyPhone:'555-0102',emergencyCap:'0',hazards:'none',requestedChecks:['Exterior / dock lines'],
+  emergencyName:'Casey Example',emergencyPhone:'555-0102',hazards:'none',requestedChecks:['This legacy freeform value is ignored'],
 };
 
 function prepared(cadence='Monthly') {
@@ -127,4 +128,62 @@ test('vessel value still must be finite and positive',()=>{
   const e=createEnrollment();
   assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'0'}),/valid positive number/);
   assert.throws(()=>applyQuestionnaire(e,{...questionnaire,value:'not-a-number'}),/valid positive number/);
+});
+
+test('invitation link is recoverable after reload and reopens the same enrollment',()=>{
+  const invitation=createInvitation();
+  const token=new URL(invitation.inviteUrl,'http://local').searchParams.get('invite');
+  const before=listEnrollments();
+  const reopened=getInvitationEnrollment(token);
+  assert.equal(reopened.id,invitation.id);
+  reopened.questionnaire={ownerName:'Saved Example'};
+  assert.equal(getInvitationEnrollment(token).questionnaire.ownerName,'Saved Example');
+  assert.equal(listEnrollments().length,before.length);
+  const recovered=listEnrollments().find(e=>e.id===invitation.id);
+  assert.equal(recovered.inviteUrl,invitation.inviteUrl);
+});
+
+test('material unsigned questionnaire edits invalidate plan and require plan recalculation',()=>{
+  const e=createEnrollment();applyQuestionnaire(e,questionnaire);choosePlan(e,'Dock Watch','Monthly','Monthly');
+  assert.equal(e.selection.monthlyEquivalent,129);
+  applyQuestionnaire(e,{...questionnaire,loa:'45',value:'1750000'});
+  assert.equal(e.selection,null);
+  assert.equal(e.questionnaire.ownerName,'Riley Example');
+  assert.equal(e.eligibilityReview,'review_required');
+  choosePlan(e,'Dock Watch','Monthly','Monthly');
+  assert.equal(e.selection.monthlyEquivalent,149);
+});
+
+test('unchanged questionnaire preserves selected plan while material contact changes invalidate it',()=>{
+  const e=createEnrollment();applyQuestionnaire(e,questionnaire);choosePlan(e,'Dock Watch','Monthly','Monthly');
+  const current=structuredClone(e.selection);
+  applyQuestionnaire(e,questionnaire);
+  assert.deepEqual(e.selection,current);
+  applyQuestionnaire(e,{...questionnaire,ownerEmail:'new-owner@example.com'});
+  assert.equal(e.selection,null);
+});
+
+test('questionnaire mappings require HIN and default report email and emergency cap safely',()=>{
+  const e=createEnrollment();
+  assert.throws(()=>applyQuestionnaire(e,{...questionnaire,hin:''}),/Please complete hin/);
+  applyQuestionnaire(e,{...questionnaire,emergencyCap:'9000',requestedChecks:['Engine operation']});
+  assert.equal(e.questionnaire.reportEmail,'riley@example.com');
+  assert.equal(e.questionnaire.emergencyCap,0);
+  assert.equal('requestedChecks' in e.questionnaire,false);
+  assert.equal(e.questionnaire.businessName,'');
+});
+
+test('customer screen keeps back navigation, saved field values, and removes obsolete fields',async()=>{
+  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(app,/value="\$\{v\}"/);
+  assert.match(app,/viewStep=0;renderCustomer\(\)/);
+  assert.match(app,/viewStep=1;renderCustomer\(\)/);
+  assert.match(app,/Edit Plan & Price/);
+  assert.doesNotMatch(app,/Report email|reportEmail','|Emergency spending cap \(\$0 if blank\)|requestedChecks/);
+  assert.match(app,/HIN \/ Registration Number/);
+  assert.match(app,/I confirm I own the vessel or am authorized to enter into this agreement on the owner's behalf\./);
+  assert.match(app,/Do not enter access codes, alarm PINs, passwords, payment card data, or real customer information\.<\/div>\$\{field\('hazards'/);
+  assert.match(app,/Open Customer View/);
+  assert.match(app,/Copy Invitation Link/);
+  assert.match(app,/\/api\/invites\/\$\{encodeURIComponent\(inviteToken\)\}/);
 });
