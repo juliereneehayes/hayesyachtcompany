@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>HYC Invited Enrollment Prototype</title><link rel="stylesheet" href="/styles.css"><script type="module" src="/app.js"></script></head>
+<body>
+<header><a class="brand" href="/">HAYES YACHT COMPANY</a><span>INVITED ENROLLMENT · PHASE 2 PROTOTYPE</span></header>
+<main>
+  <section id="admin-view">
+    <p class="eyebrow">LOCAL CAPTAIN CONSOLE · MOCK MODE</p><h1>Enrollment review</h1>
+    <p class="lede">Create a local captain invitation, then review customer-signed and paid enrollments. No invitations are emailed. Copy the generated link to open it in another tab.</p>
+    <div class="notice">SIMULATION ONLY — no production SignWell, Stripe, email, or customer records.</div>
+    <div class="toolbar"><button id="new-invite" class="primary">Create customer invitation</button><button id="refresh" class="secondary">Refresh enrollments</button></div>
+    <p id="admin-message" class="message" aria-live="polite"></p>
+    <section id="invite-result" class="card" hidden></section>
+    <div id="queue" class="queue"></div>
+    <section id="review" class="card" hidden></section>
+  </section>
+  <section id="customer-view" hidden>
+    <p class="eyebrow">PRIVATE CAPTAIN INVITATION · LOCAL MOCK</p><h1>Welcome to Hayes Yacht Company</h1>
+    <div class="notice">TEST ENROLLMENT — NOT A CUSTOMER CONTRACT. Do not enter real customer or credential information.</div>
+    <div id="customer-alert" class="message" aria-live="polite"></div>
+    <nav id="progress" class="progress" aria-label="Enrollment steps"></nav>
+    <section id="step-content" class="card"></section>
+  </section>
+</main>
+<footer>Local prototype · captain-invited flow only · no production integrations</footer>
+</body></html>

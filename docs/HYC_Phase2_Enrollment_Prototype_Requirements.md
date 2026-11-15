@@ -4,7 +4,7 @@
 
 ## One customer flow for both entry paths
 
-Captain-invited and future self-service users enter through different entry points but use the same questionnaire, validation, agreement, payment simulation, state model, and review queue.
+Phase 2 implements **captain-invited enrollment as the only entry point**. Keep the underlying questionnaire, validation, agreement, simulated payment, state model, and review queue reusable for future self-service subscriptions, but do not build or expose a public self-service entry point in this phase.
 
 1. Complete the short onboarding questionnaire.
 2. Confirm service plan, exact pricing, billing cadence, and renewal anniversary basis.
@@ -14,6 +14,14 @@ Captain-invited and future self-service users enter through different entry poin
 6. Captain Will reviews the customer information and signed packet; then either countersigns or declines.
 7. On countersignature, mark the agreement fully executed and show confirmation/next steps to the customer. On decline, model simulated subscription cancellation and a manual-refund-pending task.
 8. After HYC acceptance, model Boat Binder setup, secure operational onboarding, readiness checks, and first-visit scheduling as separate steps.
+
+## Enrollment questionnaire and invitation behavior
+
+- Collect only the enrollment and agreement essentials: Owner Name; optional Business Name; actual signer name and optional title; owner email/phone; vessel name/model, length, positive value, and required HIN or registration number; marina/slip; insurer/policy expiry; emergency contact; hazards/access limitations; and required owner-or-authorized and insurance confirmations.
+- Use the owner email as the internal reporting-email default. Keep the individual owner, optional contracting business, and actual signer distinct in the agreement and HYC review.
+- Keep emergency spending authority at $0 in the model. Do not collect freeform requested visual checks or customer-entered emergency spending limits. A plan scope summary is informational; signed Exhibit A controls authorizations and plan selection grants no equipment-operation authority.
+- Let customers navigate backward and prefill saved answers and plan choices before signature. A material questionnaire edit invalidates the unsigned plan when it can affect eligibility or price; require plan recalculation before agreement signing. After signature, allow read-only agreement review and require a new agreement version and signature for material corrections. Paid and HYC-finalized records reject customer edits and repeat payment actions server-side.
+- The captain console must recover Copy/Open actions for the original invitation after browser refresh. Reopening an invitation loads the same enrollment and progress without creating a duplicate. The local prototype keeps token/enrollment records in memory only. A production design requires invitation expiration, revocation, and secure reissue instead of permanently recoverable plaintext tokens.
 
 ## Independent status dimensions
 
@@ -46,7 +54,7 @@ Payment success does not equal HYC acceptance, full agreement execution, or serv
 
 ## Phase 2 acceptance criteria
 
-1. Captain-invited and self-service entry paths converge on the same validation and state machine; synthetic sample records stay separate.
+1. Captain Will can create a local invitation and the customer can enter only through that invitation. Enrollment logic is reusable for later self-service, but no public self-service entry point exists; synthetic records stay separate.
 2. Customer can complete questionnaire, plan/pricing review, agreement signing, and simulated checkout in one session without waiting for Will or returning later.
 3. After the customer signs, checkout is immediately available while HYC countersignature remains pending.
 4. Payment received, HYC review, HYC acceptance, full execution, and service readiness are visibly separate states.
