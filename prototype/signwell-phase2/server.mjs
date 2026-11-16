@@ -294,6 +294,11 @@ async function refreshProviderStatus(e, provider) {
       next.internalReconciliationRequired = true;
       next.internalReconciliationReason = 'captain_signature_before_internal_eligibility_approval';
       next.agreementStatus = 'provider_completed_pending_hyc_approval';
+    } else if (next.internalReconciliationRequired && next.internalReconciliationReason === 'captain_signature_before_internal_eligibility_approval') {
+      // A later eligibility disposition does not retroactively authorize a
+      // countersignature that was captured before approval. Keep HYC's manual
+      // reconciliation hold until an explicit internal resolution is recorded.
+      next.agreementStatus = 'provider_completed_pending_hyc_approval';
     } else {
       next.hycDecision = 'accepted';
       next.agreementStatus = 'fully_executed_test';
@@ -406,7 +411,7 @@ export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
           return send(res,200,publicEnrollment(e));
         } catch(error){return send(res,409,{error:error.message});}
       }
-      const adminSignMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)\/signwell\/(status|signing|decision|pdf)$/);
+      const adminSignMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)\/signwell\/(status|signing|decision|reconcile|pdf)$/);
       if(adminSignMatch&&signWellConfig.mode==='signwell-test'){
         const e=enrollments.get(adminSignMatch[1]);if(!e)return send(res,404,{error:'Enrollment not found.'});
         const action=adminSignMatch[2];
@@ -416,6 +421,13 @@ export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
         if(req.method==='GET'&&action==='signing'){
           if(e.paymentStatus!=='succeeded'||e.hycDecision!=='review_pending'||e.signers.customer!=='provider_confirmed'||e.eligibilityReview==='review_required')return send(res,409,{error:'Customer signature, simulated payment, and any required eligibility review must be confirmed before HYC signing.'});
           try{const {result}=await refreshProviderStatus(e,provider);if(!['pending','sent','in_progress','viewed'].includes(result.documentStatus)||result.hycSigned)return send(res,409,{error:'Captain Will signing is not currently available.'});const signingUrl=e.signWellSigningUrls?.hyc;if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});return send(res,200,{signingUrl});}catch(error){return send(res,502,{error:error.message});}
+        }
+        if(req.method==='POST'&&action==='reconcile'){
+          try{
+            await refreshProviderStatus(e,provider);
+            if(!e.internalReconciliationRequired||e.internalReconciliationReason!=='captain_signature_before_internal_eligibility_approval'||e.hycDecision!=='review_pending'||e.paymentStatus!=='succeeded'||e.signers.customer!=='provider_confirmed'||e.signers.captainWill!=='provider_confirmed'||(Number(e.questionnaire?.value)>1_500_000&&!['reviewed_eligible','exception_approved'].includes(e.eligibilityReview)))return send(res,409,{error:'Manual reconciliation requires confirmed customer and Captain Will signatures, successful simulated payment, and any required internal eligibility disposition.'});
+            const next=structuredClone(e);next.internalReconciliationRequired=false;next.internalReconciliationReason=null;next.hycDecision='accepted';next.agreementStatus='fully_executed_test';next.enrollmentStatus='accepted_setup_pending';next.serviceReadiness='boat_binder_pending';next.updatedAt=new Date().toISOString();assertEnrollmentConsistency(next);Object.assign(e,next);return send(res,200,publicEnrollment(e,{internal:true}));
+          }catch(error){return send(res,409,{error:error.message});}
         }
         if(req.method==='POST'&&action==='decision'){
           const body=await readBody(req);
