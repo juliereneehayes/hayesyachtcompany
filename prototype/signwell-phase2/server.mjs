@@ -326,7 +326,7 @@ async function refreshProviderStatus(e, provider) {
       next.enrollmentStatus = isExpired ? 'expired' : 'declined';
       if (next.paymentStatus !== 'succeeded') next.paymentStatus = 'not_started';
       next.refundStatus = 'not_applicable';
-      next.customerOutcomeNotice = isExpired ? 'The test agreement expired before payment. No payment was taken.' : 'The test agreement was declined before payment. No payment was taken.';
+      next.customerOutcomeNotice = isExpired ? 'The test agreement expired before payment. No payment was taken.' : result.documentStatus === 'declined' ? 'The test agreement was declined before payment. No payment was taken.' : 'The test agreement was canceled before payment. No payment was taken.';
       if (result.customer === 'declined') next.signers.customer = 'declined';
       if (result.hyc === 'declined') next.signers.captainWill = 'declined';
     }
