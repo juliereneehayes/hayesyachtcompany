@@ -424,6 +424,7 @@ export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
         }
         if(req.method==='POST'&&action==='reconcile'){
           try{
+            const body=await readBody(req);if(body.decision!=='accept')return send(res,409,{error:'Choose explicit manual acceptance after reviewing the provider evidence.'});
             await refreshProviderStatus(e,provider);
             if(!e.internalReconciliationRequired||e.internalReconciliationReason!=='captain_signature_before_internal_eligibility_approval'||e.hycDecision!=='review_pending'||e.paymentStatus!=='succeeded'||e.signers.customer!=='provider_confirmed'||e.signers.captainWill!=='provider_confirmed'||(Number(e.questionnaire?.value)>1_500_000&&!['reviewed_eligible','exception_approved'].includes(e.eligibilityReview)))return send(res,409,{error:'Manual reconciliation requires confirmed customer and Captain Will signatures, successful simulated payment, and any required internal eligibility disposition.'});
             const next=structuredClone(e);next.internalReconciliationRequired=false;next.internalReconciliationReason=null;next.hycDecision='accepted';next.agreementStatus='fully_executed_test';next.enrollmentStatus='accepted_setup_pending';next.serviceReadiness='boat_binder_pending';next.updatedAt=new Date().toISOString();assertEnrollmentConsistency(next);Object.assign(e,next);return send(res,200,publicEnrollment(e,{internal:true}));
