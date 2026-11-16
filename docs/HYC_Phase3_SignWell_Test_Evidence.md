@@ -16,16 +16,19 @@ The new Phase 3 suite uses an injected fake SignWell HTTP transport. It does not
 - HYC cannot accept via an administrative button; acceptance occurs only from confirmed provider status.
 - Duplicate issue requests reuse a document; ambiguous creation responses are not retried automatically.
 - Missing recipient status, provider customer decline, document expiration, HYC cancellation, delayed PDF availability, completed PDF validation, audit-page request, and SHA-256 recording.
+- Above-threshold customers can complete the normal details, plan, signing, and simulated payment flow. Customer API responses omit internal eligibility and reconciliation state.
+- Captain Review requires the internal “Reviewed eligible” or “Exception approved” disposition before countersigning. A provider-confirmed early Captain signature preserves its evidence but stays on internal reconciliation hold until HYC explicitly resolves it.
+- Provider decline before payment leaves payment and refund states untouched. A confirmed HYC decline after payment preserves the paid timestamp and records simulated cancellation plus manual-refund-pending; ambiguous postpayment disposition remains open for internal reconciliation without claiming a refund.
 - Provider signature state does not set simulated payment success or service readiness. Existing mock enrollment behavior remains credential-free.
 
-The Phase 3 provider suite has 16 tests; Phase 2 workflow suite has 21. Run both with `cd prototype/signwell-phase2 && npm test`.
+The Phase 3 provider suite has 23 tests; Phase 2 workflow suite has 21. Run both with `cd prototype/signwell-phase2 && npm test`.
 
 ## Existing test suites requested
 
 Executed November 15, 2026:
 
 - Phase 1: `cd prototype/signwell-phase1 && npm test` — 4 passed, 0 failed.
-- Phase 2 + Phase 3 mocked provider: `cd prototype/signwell-phase2 && npm test` — 37 passed, 0 failed (16 new SignWell tests + 21 Phase 2 workflow tests).
+- Phase 2 + Phase 3 mocked provider: `cd prototype/signwell-phase2 && npm test` — 44 passed, 0 failed (23 SignWell tests + 21 Phase 2 workflow tests).
 - Root site: `node --test tests/site.test.mjs` — 8 passed, 0 failed.
 
 ## SignWell Test Mode manual evidence
