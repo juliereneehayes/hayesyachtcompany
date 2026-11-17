@@ -2,7 +2,6 @@ import { createHash } from 'node:crypto';
 
 const API = 'https://www.signwell.com/api/v1';
 const RESERVED = 'example.com';
-export const SIGNWELL_ROLES = Object.freeze({ customer: 'customer', captainWill: 'hyc_representative' });
 export const REQUIRED_TEMPLATE_FIELDS = Object.freeze(['owner_name','contracting_business','signer_name','owner_email','vessel_name','vessel_model','vessel_length','vessel_value','hin_or_registration','plan','visit_frequency','billing_cadence','price']);
 
 export function readSignWellConfig(env = process.env) {
@@ -94,7 +93,6 @@ export function createSignWellClient(config, fetchImpl = fetch) {
   }
 }
 
-const RESERVED_CUSTOMER_EMAIL = 'morgan@example.com';
 const RESERVED_HYC_EMAIL = 'captain.will@example.com';
 
 function usd(amount) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(Number(amount)); }
