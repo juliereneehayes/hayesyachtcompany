@@ -131,6 +131,44 @@ test('Captain Review shows the internal gate and blocks countersigning until dis
   });
 });
 
+test('customer signing accepts SignWell Pending document and in progress recipient statuses',async()=>{
+  const mock=mockFetch();await withApp(mock,async base=>{const {token}=await issued(base);mock.docStatus='Pending';mock.customer='in progress';
+    const status=await json(base,`/api/invites/${token}/signature-status`,'POST',{});assert.equal(status.status,200);assert.equal(status.data.signers.customer,'pending');
+    const signing=await json(base,`/api/invites/${token}/signing`);assert.equal(signing.status,200);assert.equal(typeof signing.data.signingUrl,'string');
+  });
+});
+
+test('customer signing rejects a waiting recipient status',async()=>{
+  const mock=mockFetch();await withApp(mock,async base=>{const {token}=await issued(base);mock.customer='waiting';
+    assert.equal((await json(base,`/api/invites/${token}/signing`)).status,409);
+  });
+});
+
+test('Captain Will signing rejects a waiting recipient status',async()=>{
+  const mock=mockFetch();await withApp(mock,async base=>{const {token,id}=await issued(base);mock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});mock.hyc='waiting';
+    assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);
+  });
+});
+
+test('Captain Will in progress status remains gated by customer signature, payment, and eligibility',async()=>{
+  const mock=mockFetch();await withApp(mock,async base=>{const {token,id}=await issuedValue(base,'1.8 million');mock.hyc='in progress';
+    assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);
+    mock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});
+    assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);
+    await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});
+    assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);
+    await json(base,`/api/admin/enrollments/${id}/eligibility`,'POST',{disposition:'reviewed_eligible'});
+    assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,200);
+  });
+});
+
+test('terminal and unknown recipient statuses remain blocked for both signers',async()=>{
+  for(const status of ['declined','expired','unknown']){
+    const customerMock=mockFetch();await withApp(customerMock,async base=>{const {token}=await issued(base);customerMock.customer=status;assert.equal((await json(base,`/api/invites/${token}/signing`)).status,409);});
+    const hycMock=mockFetch();await withApp(hycMock,async base=>{const {token,id}=await issued(base);hycMock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});hycMock.hyc=status;assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);});
+  }
+});
+
 test('provider Captain signature cannot bypass eligibility and is retained for manual reconciliation',async()=>{
   const mock=mockFetch();await withApp(mock,async base=>{const {token,id}=await issuedValue(base,'2 million');mock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});mock.hyc='completed';mock.docStatus='completed';
     const customer=await json(base,`/api/invites/${token}/signature-status`,'POST',{});assert.equal(customer.status,200);assert.equal(customer.data.hycDecision,'review_pending');assert.equal(customer.data.serviceReadiness,'not_started');assert.equal('eligibilityReview' in customer.data,false);assert.equal('internalReconciliationRequired' in customer.data,false);
