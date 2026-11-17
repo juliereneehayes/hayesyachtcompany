@@ -1,29 +1,83 @@
 {
-  "notice": "EXPECTED STRUCTURE ONLY — IDs and labels must be copied and reviewed from the actual synthetic SignWell template before provider mode is enabled.",
-  "customer": { "id": "1", "placeholderId": "<SignWell Customer placeholder ID>", "name": "Customer", "signingOrder": 1 },
-  "hyc": { "id": "2", "placeholderId": "<SignWell HYC placeholder ID>", "name": "HYC Representative", "signingOrder": 2 },
+  "notice": "Verified against the HYC synthetic SignWell Test Mode template by read-only Get Template on 2026-11-16. IDs are template-specific.",
+  "customer": {
+    "id": "1",
+    "placeholderId": "1",
+    "name": "Customer",
+    "signingOrder": 1
+  },
+  "hyc": {
+    "id": "2",
+    "placeholderId": "2",
+    "name": "Hyc Representative",
+    "signingOrder": 2
+  },
   "fields": {
-    "owner_name": { "apiId": "<API ID>", "label": "Owner" },
-    "contracting_business": { "apiId": "<API ID>", "label": "Contracting business" },
-    "signer_name": { "apiId": "<API ID>", "label": "Person signing" },
-    "owner_email": { "apiId": "<API ID>", "label": "Owner email" },
-    "vessel_name": { "apiId": "<API ID>", "label": "Vessel name" },
-    "vessel_model": { "apiId": "<API ID>", "label": "Vessel model" },
-    "vessel_length": { "apiId": "<API ID>", "label": "Vessel length" },
-    "vessel_value": { "apiId": "<API ID>", "label": "Approximate vessel value" },
-    "hin_or_registration": { "apiId": "<API ID>", "label": "HIN or registration" },
-    "plan": { "apiId": "<API ID>", "label": "Plan" },
-    "visit_frequency": { "apiId": "<API ID>", "label": "Visit frequency" },
-    "billing_cadence": { "apiId": "<API ID>", "label": "Billing cadence" },
-    "price": { "apiId": "<API ID>", "label": "Simulated price" },
-    "included_activity": { "apiId": "<API ID>", "label": "Included activity" },
-    "emergency_spending_authority": { "apiId": "<API ID>", "label": "Emergency spending authority" },
-    "agreement_version": { "apiId": "<API ID>", "label": "Agreement version" },
-    "agreement_notice": { "apiId": "<API ID>", "label": "Agreement status notice" }
+    "owner_name": {
+      "apiId": "owner",
+      "label": "Owner"
+    },
+    "contracting_business": {
+      "apiId": "contracting_business",
+      "label": "Contracting business"
+    },
+    "signer_name": {
+      "apiId": "person_signing",
+      "label": "Person signing"
+    },
+    "owner_email": {
+      "apiId": "owner_email",
+      "label": "Owner email"
+    },
+    "vessel_name": {
+      "apiId": "vessel_name",
+      "label": "Vessel name"
+    },
+    "vessel_model": {
+      "apiId": "vessel_model",
+      "label": "Vessel model"
+    },
+    "vessel_length": {
+      "apiId": "vessel_length",
+      "label": "Vessel length"
+    },
+    "vessel_value": {
+      "apiId": "approximate_vessel_value",
+      "label": "Approximate vessel value"
+    },
+    "hin_or_registration": {
+      "apiId": "hin_or_registration",
+      "label": "HIN or registration"
+    },
+    "plan": {
+      "apiId": "plan",
+      "label": "Plan"
+    },
+    "visit_frequency": {
+      "apiId": "visit_frequency",
+      "label": "Visit frequency"
+    },
+    "billing_cadence": {
+      "apiId": "billing_cadence",
+      "label": "Billing cadence"
+    },
+    "price": {
+      "apiId": "simulated_price",
+      "label": "Simulated price"
+    }
   },
   "signatureFields": [
-    { "placeholderName": "Customer", "type": "signature", "required": true, "preSigned": false },
-    { "placeholderName": "HYC Representative", "type": "signature", "required": true, "preSigned": false },
-    { "placeholderName": "Customer", "type": "initials", "required": false, "preSigned": false }
+    {
+      "placeholderName": "Customer",
+      "type": "signature",
+      "required": true,
+      "preSigned": false
+    },
+    {
+      "placeholderName": "Hyc Representative",
+      "type": "signature",
+      "required": true,
+      "preSigned": false
+    }
   ]
 }
