@@ -24,7 +24,7 @@ This file applies to the whole repository. Follow these expectations when changi
 ## Hayes Yacht Company safeguards
 
 - Preserve the static public website and keep local enrollment prototypes isolated from it.
-- Keep signature, payment, HYC acceptance, and service-readiness states distinct; do not infer one from another.
+- Keep signature, payment, refunds, HYC acceptance, and service-readiness states distinct; do not infer one from another.
 - Keep vessel-value eligibility reviews internal.
 - Emergency spending defaults to $0. Any increase requires separate written customer authorization.
 - Keep API credentials and `.env.local` files out of Git.
