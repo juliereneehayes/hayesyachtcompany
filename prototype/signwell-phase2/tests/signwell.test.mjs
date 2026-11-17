@@ -138,6 +138,12 @@ test('customer signing accepts SignWell Pending document and in progress recipie
   });
 });
 
+test('customer signing distinguishes iframe load from agreement document load',async()=>{
+  const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
+  assert.match(app,/iframeLoaded:\(\)=>message\('signature-message','SignWell iframe loaded\. Waiting for the agreement…'\)/);
+  assert.match(app,/documentLoaded:\(\)=>message\('signature-message','SignWell agreement loaded\.'\)/);
+});
+
 test('customer signing rejects a waiting recipient status',async()=>{
   const mock=mockFetch();await withApp(mock,async base=>{const {token}=await issued(base);mock.customer='waiting';
     assert.equal((await json(base,`/api/invites/${token}/signing`)).status,409);
