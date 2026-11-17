@@ -9,6 +9,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4180);
 const invites = new Map();
 const enrollments = new Map();
+const SIGNABLE_PROVIDER_STATUSES = new Set(['pending','sent','in_progress','viewed']);
 const bands = [[30,39],[40,49],[50,60]];
 const prices = Object.freeze({
   'Dock Check': { 'Every two weeks': [99,99,99], Weekly: [159,159,159] },
@@ -386,7 +387,7 @@ export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
           if(!e.signWellDocumentId)return send(res,409,{error:'Review the synthetic agreement and issue it before opening signing.'});
           try {
             const {result}=await refreshProviderStatus(e,provider);
-            if(!['pending','sent','in_progress','viewed'].includes(result.documentStatus)||result.customerSigned||!['pending','sent','in_progress','viewed'].includes(result.customer))return send(res,409,{error:'The customer signing step is not currently available.'});
+            if(!SIGNABLE_PROVIDER_STATUSES.has(result.documentStatus)||result.customerSigned||!SIGNABLE_PROVIDER_STATUSES.has(result.customer))return send(res,409,{error:'The customer signing step is not currently available.'});
             const signingUrl=e.signWellSigningUrls?.customer;
             if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});
             return send(res,200,{signingUrl});
@@ -420,7 +421,7 @@ export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
         }
         if(req.method==='GET'&&action==='signing'){
           if(e.paymentStatus!=='succeeded'||e.hycDecision!=='review_pending'||e.signers.customer!=='provider_confirmed'||e.eligibilityReview==='review_required')return send(res,409,{error:'Customer signature, simulated payment, and any required eligibility review must be confirmed before HYC signing.'});
-          try{const {result}=await refreshProviderStatus(e,provider);if(!['pending','sent','in_progress','viewed'].includes(result.documentStatus)||result.hycSigned)return send(res,409,{error:'Captain Will signing is not currently available.'});const signingUrl=e.signWellSigningUrls?.hyc;if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});return send(res,200,{signingUrl});}catch(error){return send(res,502,{error:error.message});}
+          try{const {result}=await refreshProviderStatus(e,provider);if(!SIGNABLE_PROVIDER_STATUSES.has(result.documentStatus)||result.hycSigned||!SIGNABLE_PROVIDER_STATUSES.has(result.hyc))return send(res,409,{error:'Captain Will signing is not currently available.'});const signingUrl=e.signWellSigningUrls?.hyc;if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});return send(res,200,{signingUrl});}catch(error){return send(res,502,{error:error.message});}
         }
         if(req.method==='POST'&&action==='reconcile'){
           try{
