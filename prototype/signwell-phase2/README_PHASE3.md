@@ -12,24 +12,24 @@ npm start
 
 The server binds only to `127.0.0.1:4180`. Mock mode requires no SignWell account. Run `npm test` for the Phase 2 workflow and mocked provider suites.
 
-Provider mode requires an account with API access, a **reviewed synthetic Test Mode template**, the actual placeholder IDs/names, every field API ID, and a server-side API key. None of these account artifacts or credentials were available in this implementation session, so provider mode has not been enabled or exercised against SignWell.
+Provider mode requires an account with API access, a **reviewed synthetic Test Mode template**, the actual placeholder IDs/names, the 13 text-field API IDs, and a server-side API key. The finalized roles are named exactly `Customer` and `Hyc Representative`; the template has one required unsigned signature for each and no initials field.
 
-1. Create and review a synthetic document from [fixtures/signwell-test-agreement.html](fixtures/signwell-test-agreement.html) in SignWell. Treat the `{{...}}` items as setup markers and replace each with a labeled editable field in the template editor. Add exactly two unsigned signer roles named `Customer` and `HYC Representative`; add one required signature field to each role, and an optional customer initials field if desired.
-2. Add editable text fields for every value in [fixtures/signwell-template-mapping.example.json](fixtures/signwell-template-mapping.example.json). Record the actual placeholder IDs and field API IDs; do not use the example IDs.
-3. Verify the template contents match the review screen terms, including the selected owner/signer, vessel, plan, visit frequency, cadence, exact price, activity scope, $0 emergency spending authority, agreement version, and nonbinding notice. Confirm neither signature field is pre-signed.
-4. Copy `.env.example` to `.env.local`, fill in only the SignWell **test-account** key, reviewed synthetic template ID, and exact local mapping. Keep `.env.local` untracked. Start with:
+1. In SignWell, maintain the finalized synthetic agreement represented by [fixtures/signwell-test-agreement.html](fixtures/signwell-test-agreement.html). The `{{...}}` markers are the 13 API-prefilled text fields listed in [fixtures/signwell-template-mapping.example.json](fixtures/signwell-template-mapping.example.json). Do not add `included_activity`, `emergency_spending_authority`, `agreement_version`, `agreement_notice`, or initials fields. Preserve the static $0 emergency-spending default and service-authorization restrictions in the agreement text.
+2. Keep the template signer placeholders named exactly `Customer` and `Hyc Representative`. Assign one required, unsigned signature field to each role.
+3. Store the SignWell **test-account** key, synthetic template ID, and actual placeholder/field mapping in the ignored `.env.local`. Keep the file untracked. Verify the template with the read-only command before any document-creation or signing workflow:
 
    ```sh
-   node --env-file=.env.local server.mjs
+   cd prototype/signwell-phase2
+   npm run verify-template
    ```
 
-   The provider path fails at startup unless `SIGNWELL_TEST_MODE=true`, the key and template ID exist, and the reviewed mapping parses. `PROVIDER_MODE=mock` remains the default when the variable is absent.
+   The verifier reads `.env.local` from this directory and makes exactly one `GET /api/v1/document_templates/{template_id}` request. It never calls a create, send, update, or signing endpoint, and does not print the API key or signing URLs. It reports each field's label, API ID, recipient, and required status; both placeholder IDs; missing, duplicate, and mismatched fields; and a pass/fail result for the 13 text fields and two required signatures. It exits nonzero on a mismatch. `PROVIDER_MODE=mock` remains the default when the variable is absent.
 
 Provider mode rejects names, contact values, vessel identifiers, locations, and insurers that are not clearly synthetic; customer email must use the reserved `@example.com` domain and phones must use the fictional `555-01xx` range. Use fictional details only. SignWell may send signing notifications according to account/template delivery settings; the app uses only reserved fictional addresses and does not expose a public invitation or accept a real customer email.
 
 ## Provider behavior
 
-- After Agreement review, the server reads the configured template, verifies both placeholder roles, confirms the mapped field IDs exist, and rejects pre-signed required signature fields. It sends a single `Create Document from Template` request with `test_mode: true`, `draft: false`, `apply_signing_order: true`, `embedded_signing: true`, reminders off, and nonbinding metadata. Since creation sends the document directly, there is no separate send call. If one is added later it must also explicitly set Test Mode.
+- After Agreement review, the server reads the configured template, verifies both exact placeholder roles, confirms all 13 mapped text fields and two required unsigned signature fields, and rejects unexpected extra fields. It sends values for only the 13 mapped text fields. Agreement version remains in internal enrollment state and provider metadata; $0 emergency spending and service restrictions remain static agreement terms. Document creation is separately gated behind the Test Mode flow.
 - Template placeholder IDs and placeholder names are stored separately from the unique document recipient IDs. Each recipient uses the documented `id`, `placeholder_name`, `name`, and fictional `email` properties. Signing order comes from the recipient array and documented `apply_signing_order` option; the prototype does not send `signing_order`, `send_email`, or `send_sms` recipient properties.
 - The customer signing URL is returned by a token-scoped server endpoint and held only in local server memory. It is never returned on the Captain Will endpoints. The HYC URL is available only after customer status confirmation and simulated payment.
 - SignWell's embedded JavaScript events and redirects are treated only as prompts to check status. Get Document must match the provider document ID, enrollment ID, agreement version, and signer recipient IDs. Only its recipient status confirms a signature. Checkout stays locked until customer confirmation.
@@ -39,7 +39,7 @@ Provider mode rejects names, contact values, vessel identifiers, locations, and 
 
 ## Current official API review
 
-Reviewed November 15, 2026:
+Reviewed November 16, 2026:
 
 - [Create Document from Template](https://developers.signwell.com/reference/createdocumentfromtemplate) supports `template_id`, `test_mode`, `draft`, `recipients`, `apply_signing_order`, `embedded_signing`, `embedded_signing_notifications`, `reminders`, `metadata`, and `template_fields`. It assigns recipients to template placeholders, copies any pre-signed template marks as document content (not a signature event), and documents template field prefills by API ID. The current [OpenAPI schema](https://developers.signwell.com/openapi/resources-and-endpoints.json) returns template fields grouped per file; the implementation flattens those groups, validates API IDs and exact labels, and separates template placeholder IDs from unique recipient IDs. The prototype refuses pre-signed signature fields.
 - [Create a Document / embedded signing example](https://developers.signwell.com/reference/create-a-document) shows placeholder assignment using recipient `id`, `placeholder_name`, `name`, and `email`; `embedded_signing_url` is returned on the recipient. The current official [iframe guide](https://developers.signwell.com/reference/embedded-iframe) uses `https://static.signwell.com/assets/embedded.js`, `SignWellEmbed`, and `completed`, `declined`, `closed`, `error`, and load callbacks.
@@ -47,11 +47,15 @@ Reviewed November 15, 2026:
 - [Get Document](https://developers.signwell.com/reference/getdocument) is the status source. [Completed PDF](https://developers.signwell.com/reference/getcompletedpdf) returns binary PDF by default, with `audit_page=true` (already the documented default) and a PDF or ZIP format option.
 - [Authentication and Test Mode](https://developers.signwell.com/reference/getting-started-with-your-api-1) require `X-Api-Key`; API documentation describes `test_mode: true` on supported resources. All requests here remain server-side.
 
-Phase 1's adapter was an unexercised draft. Its hardcoded `signing_order`, recipient `send_email`/`send_sms`, and positional status assumptions were not carried into this path; the official docs specify placeholder assignment and ordering through the ordered recipient list plus `apply_signing_order`. The reviewed account's Get Template/Get Document response shapes still need controlled verification.
+Phase 1's adapter was an unexercised draft. Its hardcoded `signing_order`, recipient `send_email`/`send_sms`, and positional status assumptions were not carried into this path; the official docs specify placeholder assignment and ordering through the ordered recipient list plus `apply_signing_order`. A read-only Get Template response was received on November 16, 2026; Get Document status behavior remains unverified against the account.
 
 ## Template mapping status and outstanding prerequisites
 
-The repository manifest is a **setup specification**, not a verified live SignWell mapping. Placeholder IDs, field API IDs, signature field assignment and optional initials support must be replaced/confirmed from the HYC test account before turning on provider mode. No credential, template, document, embedded session, or API request was available here; this is an explicit provider validation blocker.
+The mapping manifest contains the IDs observed in the HYC template's read-only Get Template response. A successful response returned two placeholders (`Customer`, ID `1`; `Hyc Representative`, ID `2`) and 17 fields grouped by file: 13 text fields, two required signatures, and two required signature-date fields. It returned no initials field. Twelve mapped text fields report `required: false`; `Owner email` reports `required: true`. The 13 API-prefill fields remain required in the application mapping, and the verifier reports each template required flag without requiring all prefills to be signer-editable mandatory fields.
+
+Four field API IDs differ from straightforward key-name guesses: `owner_name` uses `owner`, `signer_name` uses `person_signing`, `vessel_value` uses `approximate_vessel_value`, and `price` uses `simulated_price`. The other nine API IDs match their mapping keys. All 13 returned text labels and recipients matched the finalized mapping. Two later read-only verification attempts returned HTTP 401 after the mapping was updated; the verifier suppressed response details and did not print credentials. Rerun `npm run verify-template` with a currently authorized test-account API key to confirm the corrected local map.
+
+The `npm run verify-template` command reads the ignored local `.env.local` and makes one `GET /api/v1/document_templates/{template_id}` request. It does not create or modify SignWell documents or templates.
 
 The template map only authorizes the required fields. A changed owner, vessel, plan, cadence, price, or agreement version requires a new document and fresh signatures. Issued terms are locked in the app.
 
@@ -72,4 +76,4 @@ Before production, HYC needs authenticated, expiring customer invitations and si
 
 ## Verification evidence
 
-Automated tests use mocked SignWell responses only. They cover explicit Test Mode configuration, request fields, mapping and order, status gates, simulated payment ordering, role URL separation, duplicate prevention, malformed/delayed responses, decline/cancellation, PDF plus audit-page retrieval, and mock mode. Actual SignWell behavior, account email delivery settings, provider response schemas, test PDF contents, and optional initials remain unverified until the prerequisites above are available.
+Automated tests use mocked SignWell responses only, including checks that the verifier issues one GET and sanitizes its report. They cover explicit Test Mode configuration, the exact 13-field payload, mapping and order, status gates, simulated payment ordering, role URL separation, duplicate prevention, malformed/delayed responses, decline/cancellation, PDF plus audit-page retrieval, and mock mode. No document creation, account email delivery, embedded session, or completed PDF retrieval was performed during the read-only template check.
