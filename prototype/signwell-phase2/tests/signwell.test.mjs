@@ -1,12 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createAppServer } from '../server.mjs';
-import { assertSyntheticEnrollment, readSignWellConfig, signerCompletion, validateReviewedTemplate } from '../signwell.mjs';
+import { assertSyntheticEnrollment, inspectSignWellTemplate, readSignWellConfig, REQUIRED_TEMPLATE_FIELDS, signerCompletion, validateReviewedTemplate } from '../signwell.mjs';
+import { formatTemplateReport, parseLocalEnv, verifyConfiguredTemplate } from '../scripts/verify-template.mjs';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
-const fieldKeys=['owner_name','contracting_business','signer_name','owner_email','vessel_name','vessel_model','vessel_length','vessel_value','hin_or_registration','plan','visit_frequency','billing_cadence','price','included_activity','emergency_spending_authority','agreement_version','agreement_notice'];
-const mapping={customer:{id:'1',placeholderId:'placeholder-customer',name:'Customer'},hyc:{id:'2',placeholderId:'placeholder-hyc',name:'HYC Representative'},fields:Object.fromEntries(fieldKeys.map(k=>[k,{apiId:`api_${k}`,label:`Label ${k}`}]))};
+const fieldKeys=['owner_name','contracting_business','signer_name','owner_email','vessel_name','vessel_model','vessel_length','vessel_value','hin_or_registration','plan','visit_frequency','billing_cadence','price'];
+const fieldLabels={owner_name:'Owner',contracting_business:'Contracting business',signer_name:'Person signing',owner_email:'Owner email',vessel_name:'Vessel name',vessel_model:'Vessel model',vessel_length:'Vessel length',vessel_value:'Approximate vessel value',hin_or_registration:'HIN or registration',plan:'Plan',visit_frequency:'Visit frequency',billing_cadence:'Billing cadence',price:'Simulated price'};
+const mapping={customer:{id:'1',placeholderId:'placeholder-customer',name:'Customer'},hyc:{id:'2',placeholderId:'placeholder-hyc',name:'Hyc Representative'},fields:Object.fromEntries(fieldKeys.map(k=>[k,{apiId:`api_${k}`,label:fieldLabels[k]}]))};
 const env={PROVIDER_MODE:'signwell-test',SIGNWELL_TEST_MODE:'true',SIGNWELL_API_KEY:'mock-only-key',SIGNWELL_TEMPLATE_ID:'123e4567-e89b-42d3-a456-426614174000',SIGNWELL_TEMPLATE_MAPPING:JSON.stringify(mapping)};
-const template={id:env.SIGNWELL_TEMPLATE_ID,placeholders:[{id:'placeholder-customer',name:'Customer'},{id:'placeholder-hyc',name:'HYC Representative'}],fields:[[...fieldKeys.map(k=>({api_id:`api_${k}`,label:`Label ${k}`,type:'text',placeholder_name:'Customer'})),{api_id:'customer_signature',type:'signature',placeholder_name:'Customer',required:true,value:null},{api_id:'hyc_signature',type:'signature',placeholder_name:'HYC Representative',required:true,value:null},{api_id:'customer_initials',type:'initials',placeholder_name:'Customer',required:false,value:null}]]};
+const template={id:env.SIGNWELL_TEMPLATE_ID,placeholders:[{id:'placeholder-customer',name:'Customer'},{id:'placeholder-hyc',name:'Hyc Representative'}],fields:[[...fieldKeys.map(k=>({api_id:`api_${k}`,label:fieldLabels[k],type:'text',placeholder_name:'Customer'})),{api_id:'customer_signature',type:'signature',placeholder_name:'Customer',required:true,value:null},{api_id:'hyc_signature',type:'signature',placeholder_name:'Hyc Representative',required:true,value:null}]]};
 
 function mockFetch({delayedPdf=false,badCreate=false,missingRecipient=false,badMetadata=false}={}){
   const calls=[];let docs=0;let customer='pending',hyc='pending',docStatus='pending',pdfCalls=0,mockEnrollmentId='';
@@ -47,14 +52,50 @@ test('provider config fails closed when credentials, explicit test flag, or mapp
 });
 
 test('Test Mode creation payload uses reviewed placeholder IDs, fields, and customer-first ordered recipients',async()=>{
-  const mock=mockFetch();await withApp(mock,async base=>{const {issued:issueResponse}=await issued(base);assert.equal(issueResponse.status,201);const create=mock.calls.find(c=>c.path.endsWith('/document_templates/documents'));assert.equal(create.payload.test_mode,true);assert.equal(create.payload.apply_signing_order,true);assert.equal(create.payload.embedded_signing,true);assert.equal(create.payload.reminders,false);assert.deepEqual(create.payload.recipients.map(r=>[r.id,r.placeholder_name]),[['1','Customer'],['2','HYC Representative']]);assert.equal(create.payload.recipients[0].email,'morgan@example.com');assert.equal(create.payload.template_fields.length,fieldKeys.length);assert.equal(create.payload.draft,false);});
+  const mock=mockFetch();await withApp(mock,async base=>{const {issued:issueResponse}=await issued(base);assert.equal(issueResponse.status,201);const create=mock.calls.find(c=>c.path.endsWith('/document_templates/documents'));assert.equal(create.payload.test_mode,true);assert.equal(create.payload.apply_signing_order,true);assert.equal(create.payload.embedded_signing,true);assert.equal(create.payload.reminders,false);assert.deepEqual(create.payload.recipients.map(r=>[r.id,r.placeholder_name]),[['1','Customer'],['2','Hyc Representative']]);assert.equal(create.payload.recipients[0].email,'morgan@example.com');assert.equal(create.payload.template_fields.length,13);assert.deepEqual(create.payload.template_fields.map(f=>f.api_id),fieldKeys.map(k=>`api_${k}`));assert.equal(create.payload.template_fields.some(f=>['included_activity','emergency_spending_authority','agreement_version','agreement_notice'].includes(f.api_id)),false);assert.equal(create.payload.metadata.agreement_version,'2');assert.equal(create.payload.draft,false);});
 });
 
 test('SignWell template review checks role assignments, unsigned signature fields, and field API IDs',()=>{
   assert.equal(validateReviewedTemplate(template,mapping),true);
-  assert.throws(()=>validateReviewedTemplate({...template,placeholders:[]},mapping),/placeholders/);
-  assert.throws(()=>validateReviewedTemplate({...template,fields:template.fields.map(group=>group.map(f=>f.api_id==='customer_signature'?{...f,value:'presigned'}:f))},mapping),/Pre-signed/);
-  assert.throws(()=>validateReviewedTemplate({...template,fields:template.fields.map(group=>group.map(f=>f.api_id==='api_owner_name'?{...f,label:'Wrong term'}:f))},mapping),/API ID or label/);
+  assert.throws(()=>validateReviewedTemplate({...template,placeholders:[]},mapping),/verification failed/);
+  assert.throws(()=>validateReviewedTemplate({...template,fields:template.fields.map(group=>group.map(f=>f.api_id==='customer_signature'?{...f,value:'presigned'}:f))},mapping),/verification failed/);
+  assert.throws(()=>validateReviewedTemplate({...template,fields:template.fields.map(group=>group.map(f=>f.api_id==='api_owner_name'?{...f,label:'Wrong term'}:f))},mapping),/verification failed/);
+});
+
+test('finalized synthetic agreement has no removed fields or initials and preserves service restrictions',async()=>{
+  const source=await readFile(new URL('../fixtures/signwell-test-agreement.html',import.meta.url),'utf8');
+  for(const removed of ['included_activity','emergency_spending_authority','agreement_version','agreement_notice'])assert.doesNotMatch(source,new RegExp(`\\{\\{${removed}\\}\\}`));
+  assert.doesNotMatch(source,/initials/i);assert.doesNotMatch(source,/Agreement version/i);assert.match(source,/Emergency spending authority is \$0/);assert.match(source,/separate signed Exhibit A/);assert.match(source,/No vessel movement, repositioning, towing, haul-out, launch, or delivery/);assert.match(source,/only when the specific equipment and limits are expressly authorized/);
+});
+
+test('template inspector reports missing, duplicate, mismatched fields and required signatures',()=>{
+  assert.equal(REQUIRED_TEMPLATE_FIELDS.length,13);assert.equal(inspectSignWellTemplate(template,mapping).ok,true);
+  const base=template.fields[0];
+  const missing=inspectSignWellTemplate({...template,fields:[base.filter(f=>f.api_id!=='api_owner_name')]},mapping);assert.ok(missing.missing.some(x=>x.key==='owner_name'));
+  const duplicate=inspectSignWellTemplate({...template,fields:[[...base,{...base[0]}]]},mapping);assert.ok(duplicate.duplicates.some(x=>x.apiId==='api_owner_name'));
+  const mismatch=inspectSignWellTemplate({...template,fields:[base.map(f=>f.api_id==='api_owner_name'?{...f,label:'Wrong label'}:f)]},mapping);assert.ok(mismatch.mismatched.some(x=>x.key==='owner_name'));
+  const badSignature=inspectSignWellTemplate({...template,fields:[base.map(f=>f.api_id==='customer_signature'?{...f,required:false}:f)]},mapping);assert.ok(badSignature.mismatched.some(x=>x.kind==='signature'&&x.recipient==='Customer'));
+  const initials=inspectSignWellTemplate({...template,fields:[...template.fields[0],{api_id:'initials',label:'Initials',type:'initials',placeholder_name:'Customer'}]},mapping);assert.ok(initials.mismatched.some(x=>x.kind==='unexpected_field'&&x.actualType==='initials'));
+});
+
+test('read-only verifier parses ignored env settings and sends exactly one sanitized Get Template request',async()=>{
+  const dir=await mkdtemp(join(tmpdir(),'hyc-template-verify-'));const envFile=join(dir,'.env.local');const key='do-not-print-this-test-key';const id=env.SIGNWELL_TEMPLATE_ID;
+  try{
+    await writeFile(envFile,`SIGNWELL_API_KEY=${key}\nSIGNWELL_TEMPLATE_ID=${id}\nSIGNWELL_TEMPLATE_MAPPING=${JSON.stringify(mapping)}\n`);
+    assert.equal(parseLocalEnv('export A="first=second"\n# ignored\n').A,'first=second');
+    const calls=[];const report=await verifyConfiguredTemplate({envPathOverride:envFile,fetchImpl:async(url,options)=>{calls.push({url,options});return Response.json(template);}});
+    assert.equal(calls.length,1);assert.equal(calls[0].options.method,'GET');assert.equal(calls[0].url,`https://www.signwell.com/api/v1/document_templates/${id}`);assert.equal(calls[0].options.headers['X-Api-Key'],key);assert.equal(report.ok,true);assert.deepEqual(report.placeholders.map(p=>p.name),['Customer','Hyc Representative']);assert.equal(report.checks.matchedTextFields,13);assert.equal(report.checks.actualRequiredSignatures,2);assert.doesNotMatch(formatTemplateReport(report),new RegExp(key));
+  }finally{await rm(dir,{recursive:true,force:true});}
+});
+
+test('observed HYC Get Template shape matches the corrected actual field mapping',async()=>{
+  const actualMapping=JSON.parse(await readFile(new URL('../fixtures/signwell-template-mapping.example.json',import.meta.url),'utf8'));
+  const keys=['owner_name','contracting_business','signer_name','owner_email','vessel_name','vessel_model','vessel_length','vessel_value','hin_or_registration','plan','visit_frequency','billing_cadence','price'];
+  const actualIds={owner_name:'owner',contracting_business:'contracting_business',signer_name:'person_signing',owner_email:'owner_email',vessel_name:'vessel_name',vessel_model:'vessel_model',vessel_length:'vessel_length',vessel_value:'approximate_vessel_value',hin_or_registration:'hin_or_registration',plan:'plan',visit_frequency:'visit_frequency',billing_cadence:'billing_cadence',price:'simulated_price'};
+  const actualLabels=Object.fromEntries(keys.map(k=>[k,actualMapping.fields[k].label]));
+  const fields=[{api_id:'Signature_1',type:'signature',placeholder_name:'Customer',required:true},{api_id:'Signature_2',type:'signature',placeholder_name:'Hyc Representative',required:true},{api_id:'DateField_1',type:'date',placeholder_name:'Customer',required:true},{api_id:'DateField_2',type:'date',placeholder_name:'Hyc Representative',required:true},...keys.map((key,i)=>({api_id:actualIds[key],label:actualLabels[key],type:'text',placeholder_name:'Customer',required:key==='owner_email'}))];
+  const report=inspectSignWellTemplate({id:'synthetic-template',placeholders:[{id:'1',name:'Customer'},{id:'2',name:'Hyc Representative'}],fields:[fields]},actualMapping);
+  assert.equal(report.ok,true,JSON.stringify({missing:report.missing,duplicates:report.duplicates,mismatched:report.mismatched}));assert.equal(report.fields.length,17);assert.equal(report.checks.matchedTextFields,13);assert.equal(report.checks.templateRequiredTextFields,1);assert.equal(report.checks.actualRequiredSignatures,2);
 });
 
 test('provider signatures cannot be simulated locally and payment stays locked until Get Document confirms customer signer',async()=>{
