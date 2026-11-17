@@ -199,8 +199,10 @@ export function signerCompletion(document, expectedDocumentId, recipientIds) {
   const customer = lookup('customer');
   const hyc = lookup('hyc');
   if (!customer || !hyc) throw new Error('SignWell document response did not include both expected signer roles.');
-  const status = r => String(r.status || '').toLowerCase();
-  return { customer: status(customer), hyc: status(hyc), documentStatus: String(document.status || '').toLowerCase(), customerSigned: ['completed','signed'].includes(status(customer)), hycSigned: ['completed','signed'].includes(status(hyc)) };
+  const status = value => String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+  const customerStatus = status(customer.status);
+  const hycStatus = status(hyc.status);
+  return { customer: customerStatus, hyc: hycStatus, documentStatus: status(document.status), customerSigned: ['completed','signed'].includes(customerStatus), hycSigned: ['completed','signed'].includes(hycStatus) };
 }
 
 export function pdfSha256(bytes) { return createHash('sha256').update(bytes).digest('hex'); }
