@@ -144,6 +144,22 @@ test('customer signing distinguishes iframe load from agreement document load',a
   assert.match(app,/documentLoaded:\(\)=>message\('signature-message','SignWell agreement loaded\.'\)/);
 });
 
+test('customer and Captain Will SignWell iframes use scoped responsive sizing',async()=>{
+  const [app,styles]=await Promise.all([
+    readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+    readFile(new URL('../public/styles.css',import.meta.url),'utf8'),
+  ]);
+  const sizingRule=styles.match(/\.signwell-frame\s+#SignWell-Embedded-Iframe\s*\{([^}]+)\}/);
+  assert.ok(sizingRule,'SignWell iframe sizing must be scoped to the shared signing container.');
+  assert.match(sizingRule[1],/width:\s*100%\s*!important/);
+  assert.match(sizingRule[1],/height:\s*clamp\(500px,\s*80vh,\s*700px\)\s*!important/);
+  assert.match(app,/id="signwell-frame" class="signwell-frame"/);
+  assert.match(app,/containerId:'signwell-frame'/);
+  assert.match(app,/id="signwell-frame-admin" class="signwell-frame"/);
+  assert.match(app,/containerId:'signwell-frame-admin'/);
+  assert.doesNotMatch(styles,/(^|})\s*iframe\s*\{/,'iframe sizing must not affect unrelated iframes.');
+});
+
 test('customer signing rejects a waiting recipient status',async()=>{
   const mock=mockFetch();await withApp(mock,async base=>{const {token}=await issued(base);mock.customer='waiting';
     assert.equal((await json(base,`/api/invites/${token}/signing`)).status,409);
