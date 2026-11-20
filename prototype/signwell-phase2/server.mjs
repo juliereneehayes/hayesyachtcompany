@@ -3,11 +3,13 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, extname, join, normalize } from 'node:path';
+import { createSignWellClient, pdfSha256, readSignWellConfig, signerCompletion } from './signwell.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4180);
 const invites = new Map();
 const enrollments = new Map();
+const SIGNABLE_PROVIDER_STATUSES = new Set(['pending','sent','in_progress','viewed']);
 const bands = [[30,39],[40,49],[50,60]];
 const prices = Object.freeze({
   'Dock Check': { 'Every two weeks': [99,99,99], Weekly: [159,159,159] },
@@ -73,22 +75,25 @@ export function createEnrollment(input = {}) {
     signedAt: null, paidAt: null, nextBillingAt: null, refundStatus: 'not_applicable',
     agreementVersion: 0, signedAgreementVersion: null, signedTermsSnapshot: null,
     eligibilityReview: 'not_required',
-    signers: { customer: 'pending', captainWill: 'not_requested' },
+    signers: { customer: 'pending', captainWill: 'not_requested' }, signingMode: 'mock', signWellDocumentId: null,
+    signWellStatus: 'not_created', providerRecipientIds: null, signWellSigningUrls: null, signWellPdf: null, signWellPdfSha256: null,
     ...input,
   };
 }
 
 function assertTermsEditable(enrollment) {
-  if (enrollment.signedAt || ['customer_signed','fully_executed_simulated'].includes(enrollment.agreementStatus) || enrollment.paymentStatus === 'succeeded' || ['accepted','declined'].includes(enrollment.hycDecision)) {
+  if (enrollment.signedAt || enrollment.signWellDocumentId || ['customer_signed','fully_executed_simulated'].includes(enrollment.agreementStatus) || enrollment.paymentStatus === 'succeeded' || ['accepted','declined'].includes(enrollment.hycDecision)) {
     throw new Error('Signed enrollment terms are locked. Material changes require a new agreement version and a new customer signature.');
   }
 }
 
 export function assertEnrollmentConsistency(e) {
-  if (e.signedAt && (!e.questionnaire || !e.selection || !e.signedTermsSnapshot || e.signedAgreementVersion !== e.agreementVersion || e.signers.customer !== 'signed_simulated')) throw new Error('Enrollment signature/version state is inconsistent.');
+  const customerSigned = e.signingMode === 'signwell-test' ? e.signers.customer === 'provider_confirmed' : e.signers.customer === 'signed_simulated';
+  const captainSigned = e.signingMode === 'signwell-test' ? e.signers.captainWill === 'provider_confirmed' : e.signers.captainWill === 'signed_simulated';
+  if (e.signedAt && (!e.questionnaire || !e.selection || !e.signedTermsSnapshot || e.signedAgreementVersion !== e.agreementVersion || !customerSigned)) throw new Error('Enrollment signature/version state is inconsistent.');
   if (e.signedAt && (JSON.stringify(e.signedTermsSnapshot.questionnaire) !== JSON.stringify(e.questionnaire) || JSON.stringify(e.signedTermsSnapshot.selection) !== JSON.stringify(e.selection))) throw new Error('Signed terms changed after customer signature.');
   if (e.paymentStatus === 'succeeded' && (!e.signedAt || !e.paidAt || !['review_pending','accepted'].includes(e.hycDecision))) throw new Error('Payment state is inconsistent with signature or HYC review.');
-  if (e.hycDecision === 'accepted' && (e.paymentStatus !== 'succeeded' || e.agreementStatus !== 'fully_executed_simulated' || e.signers.captainWill !== 'signed_simulated')) throw new Error('HYC acceptance state is inconsistent.');
+  if (e.hycDecision === 'accepted' && (e.paymentStatus !== 'succeeded' || !['fully_executed_simulated','fully_executed_test'].includes(e.agreementStatus) || !captainSigned)) throw new Error('HYC acceptance state is inconsistent.');
   if (e.hycDecision === 'accepted' && Number(e.questionnaire?.value) > 1_500_000 && !['reviewed_eligible','exception_approved'].includes(e.eligibilityReview)) throw new Error('Above-threshold vessel acceptance lacks eligibility review.');
   if (e.hycDecision === 'declined' && (!e.paidAt || e.paymentStatus !== 'canceled_simulated' || e.refundStatus !== 'manual_refund_pending' || e.signers.captainWill !== 'declined')) throw new Error('HYC decline state is inconsistent.');
   return true;
@@ -136,6 +141,7 @@ export function choosePlan(enrollment, plan, visitFrequency, billingCadence = 'M
 }
 
 export function signAsCustomer(enrollment) {
+  if (enrollment.signingMode === 'signwell-test') throw new Error('SignWell signatures must be confirmed through the provider status endpoint.');
   if (!enrollment.questionnaire || !enrollment.selection || enrollment.agreementStatus !== 'awaiting_customer') throw new Error('Review the questionnaire, plan, and agreement before signing.');
   enrollment.agreementStatus = 'customer_signed';
   enrollment.signers.customer = 'signed_simulated';
@@ -179,6 +185,7 @@ export function addAnniversary(date, months) {
 }
 
 export function decideEnrollment(enrollment, decision) {
+  if (enrollment.signingMode === 'signwell-test' && decision === 'accept') throw new Error('HYC can accept only after SignWell confirms Captain Will\'s signature.');
   if (enrollment.paymentStatus !== 'succeeded' || enrollment.agreementStatus !== 'customer_signed' || enrollment.hycDecision !== 'review_pending') throw new Error('Only a paid customer-signed enrollment can be reviewed.');
   if (decision === 'accept') {
     if (enrollment.eligibilityReview === 'review_required') throw new Error('Review the vessel eligibility threshold or approve a documented exception before acceptance.');
@@ -228,24 +235,139 @@ async function readBody(req) {
   return body ? JSON.parse(body) : {};
 }
 function send(res,status,data){const body=JSON.stringify(data);res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store','content-length':Buffer.byteLength(body),'x-content-type-options':'nosniff'});res.end(body);}
-function publicEnrollment(e){const {inviteToken,...safe}=e;return {...structuredClone(safe),workflowStatus:getWorkflowStatus(e),inviteUrl:inviteToken?`/customer.html?invite=${encodeURIComponent(inviteToken)}`:null};}
+function publicEnrollment(e,{internal=false}={}){const {inviteToken,signWellDocumentId,providerRecipientIds,signWellSigningUrls,signWellPdf,signWellPdfSha256,eligibilityReview,internalReconciliationRequired,internalReconciliationReason,...safe}=e;return {...structuredClone(safe),...(internal?{eligibilityReview,internalReconciliationRequired:Boolean(internalReconciliationRequired),internalReconciliationReason:internalReconciliationReason||null}:{}),signWellDocumentReady:Boolean(signWellDocumentId),signWellPdfReady:Boolean(signWellPdf),signWellPdfSha256:signWellPdfSha256||null,workflowStatus:getWorkflowStatus(e),inviteUrl:inviteToken?`/customer.html?invite=${encodeURIComponent(inviteToken)}`:null};}
 
-export function createInvitation(){
+export function createInvitation(signingMode = 'mock'){
   const token=randomBytes(24).toString('base64url');
-  const enrollment=createEnrollment({inviteToken:token});
+  const enrollment=createEnrollment({inviteToken:token,signingMode});
   invites.set(token,enrollment.id);enrollments.set(enrollment.id,enrollment);
   return {id:enrollment.id,inviteUrl:publicEnrollment(enrollment).inviteUrl,entryPath:enrollment.entryPath};
 }
 
 export function getInvitationEnrollment(token){const id=invites.get(token);return id?enrollments.get(id)||null:null;}
-export function listEnrollments(){return [...enrollments.values()].map(publicEnrollment);}
+export function listEnrollments(){return [...enrollments.values()].map(e=>publicEnrollment(e,{internal:true}));}
 
-export function createAppServer() {
+async function ensureProviderDocument(e, provider) {
+  if (e.signWellDocumentId) return e;
+  if (e.signWellIssueUncertain) throw new Error('SignWell document creation may have succeeded but its response was incomplete. Do not retry; reconcile the test document in SignWell first.');
+  if (e.signWellCreatePromise) return e.signWellCreatePromise;
+  if (!e.questionnaire || !e.selection || e.agreementStatus !== 'awaiting_customer') throw new Error('Review Your Details, Plan & Price, and the agreement before issuing it.');
+  e.signWellCreatePromise = (async () => {
+    const template = await provider.getTemplate();
+    let created;
+    try { created = await provider.createDocument(e, template); }
+    catch (error) { e.signWellIssueUncertain = true; throw new Error('SignWell document creation could not be confirmed. Do not retry until the Test Mode account is reconciled.'); }
+    e.signWellDocumentId = created.id;
+    e.signWellStatus = created.status;
+    e.providerRecipientIds = created.recipientIds;
+    e.signWellSigningUrls = { customer: created.result.recipients.find(r => String(r.id) === created.recipientIds.customer).embedded_signing_url, hyc: created.result.recipients.find(r => String(r.id) === created.recipientIds.hyc).embedded_signing_url };
+    e.updatedAt = new Date().toISOString();
+    return e;
+  })();
+  try { return await e.signWellCreatePromise; }
+  finally { delete e.signWellCreatePromise; }
+}
+
+async function refreshProviderStatus(e, provider) {
+  if (!e.signWellDocumentId) throw new Error('The SignWell test agreement has not been issued.');
+  const doc = await provider.getDocument(e.signWellDocumentId);
+  if (!doc?.metadata || doc.metadata.hyc_enrollment_id !== e.id || String(doc.metadata.agreement_version) !== String(e.agreementVersion)) throw new Error('SignWell document metadata did not match this enrollment and agreement version.');
+  const result = signerCompletion(doc, e.signWellDocumentId, e.providerRecipientIds);
+  // Stage provider evidence and derived transitions on a copy. A failed invariant
+  // check must never leave the live enrollment partly advanced.
+  const next = structuredClone(e);
+  next.signWellStatus = result.documentStatus || 'unknown';
+  const recipients = doc.recipients;
+  const customerRecipient = recipients.find(r => String(r.id) === e.providerRecipientIds.customer);
+  if (result.customerSigned) {
+    next.signers.customer = 'provider_confirmed';
+    next.agreementStatus = next.hycDecision === 'accepted' ? 'fully_executed_test' : 'customer_signed';
+    next.signedAt ||= customerRecipient.signed_at || customerRecipient.completed_at || new Date().toISOString();
+    next.signedAgreementVersion = next.agreementVersion;
+    next.signedTermsSnapshot ||= structuredClone({ questionnaire: next.questionnaire, selection: next.selection });
+    if (next.paymentStatus === 'not_started') next.paymentStatus = 'pending';
+  }
+  if (result.hycSigned) next.signers.captainWill = 'provider_confirmed';
+  const aboveThreshold = Number(next.questionnaire?.value) > 1_500_000;
+  const eligibilityApproved = !aboveThreshold || ['reviewed_eligible','exception_approved'].includes(next.eligibilityReview);
+  if (result.hycSigned && result.customerSigned && next.paymentStatus === 'succeeded' && next.hycDecision === 'review_pending') {
+    if (!eligibilityApproved) {
+      next.internalReconciliationRequired = true;
+      next.internalReconciliationReason = 'captain_signature_before_internal_eligibility_approval';
+      next.agreementStatus = 'provider_completed_pending_hyc_approval';
+    } else if (next.internalReconciliationRequired && next.internalReconciliationReason === 'captain_signature_before_internal_eligibility_approval') {
+      // A later eligibility disposition does not retroactively authorize a
+      // countersignature that was captured before approval. Keep HYC's manual
+      // reconciliation hold until an explicit internal resolution is recorded.
+      next.agreementStatus = 'provider_completed_pending_hyc_approval';
+    } else {
+      next.hycDecision = 'accepted';
+      next.agreementStatus = 'fully_executed_test';
+      next.enrollmentStatus = 'accepted_setup_pending';
+      next.serviceReadiness = 'boat_binder_pending';
+      next.internalReconciliationRequired = false;
+      next.internalReconciliationReason = null;
+    }
+  }
+  const providerClosed = ['declined','canceled','cancelled','expired'].includes(result.documentStatus);
+  if (providerClosed && next.hycDecision !== 'declined') {
+    const confirmedHycDecline = result.hyc === 'declined';
+    const isExpired = result.documentStatus === 'expired';
+    if (next.paymentStatus === 'succeeded' && !confirmedHycDecline) {
+      next.internalReconciliationRequired = true;
+      next.internalReconciliationReason = 'provider_decline_after_payment_ambiguous';
+      next.customerOutcomeNotice = 'HYC is reviewing an agreement status update. Your simulated payment remains recorded; no refund status has been confirmed.';
+    } else if (next.paymentStatus === 'succeeded' && confirmedHycDecline) {
+      next.hycDecision = 'declined';
+      next.signers.captainWill = 'declined';
+      next.paymentStatus = 'canceled_simulated';
+      next.refundStatus = 'manual_refund_pending';
+      next.enrollmentStatus = 'declined_refund_pending';
+      next.agreementStatus = 'customer_signed';
+      next.customerOutcomeNotice = null;
+      next.internalReconciliationRequired = false;
+      next.internalReconciliationReason = null;
+    } else {
+      next.agreementStatus = isExpired ? 'expired' : 'declined';
+      next.enrollmentStatus = isExpired ? 'expired' : 'declined';
+      if (next.paymentStatus !== 'succeeded') next.paymentStatus = 'not_started';
+      next.refundStatus = 'not_applicable';
+      next.customerOutcomeNotice = isExpired ? 'The test agreement expired before payment. No payment was taken.' : result.documentStatus === 'declined' ? 'The test agreement was declined before payment. No payment was taken.' : 'The test agreement was canceled before payment. No payment was taken.';
+      if (result.customer === 'declined') next.signers.customer = 'declined';
+      if (result.hyc === 'declined') next.signers.captainWill = 'declined';
+    }
+  }
+  next.updatedAt = new Date().toISOString();
+  if (next.signedAt) assertEnrollmentConsistency(next);
+  Object.assign(e,next);
+  return { enrollment: e, result };
+}
+
+async function retrieveCompletedPdf(e, provider) {
+  const { result } = await refreshProviderStatus(e, provider);
+  if (!(result.customerSigned && result.hycSigned && result.documentStatus === 'completed')) throw new Error('SignWell has not confirmed both signatures; completed PDF is not available.');
+  let lastError;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    if (attempt) await new Promise(resolve => setTimeout(resolve, 400 * (2 ** (attempt - 1))));
+    try {
+      const bytes = await provider.completedPdf(e.signWellDocumentId);
+      e.signWellPdf = bytes;
+      e.signWellPdfSha256 = pdfSha256(bytes);
+      return bytes;
+    } catch (error) { lastError = error; }
+  }
+  throw lastError || new Error('SignWell completed PDF is still being generated.');
+}
+
+export function createAppServer({ env = process.env, fetchImpl = fetch } = {}) {
+  const signWellConfig = readSignWellConfig(env);
+  const provider = signWellConfig.mode === 'signwell-test' ? createSignWellClient(signWellConfig, fetchImpl) : null;
   return createServer(async (req,res) => {
     try {
       const url = new URL(req.url,'http://127.0.0.1');
+      if (req.method === 'GET' && url.pathname === '/api/config') return send(res,200,{mode:signWellConfig.mode,providerReady:signWellConfig.ready,notice:'TEST DOCUMENT — NOT LEGALLY BINDING'});
       if (req.method === 'POST' && url.pathname === '/api/admin/invitations') {
-        return send(res,201,createInvitation());
+        return send(res,201,createInvitation(signWellConfig.mode));
       }
       if (req.method === 'GET' && url.pathname === '/api/admin/enrollments') return send(res,200,listEnrollments());
       const inviteMatch = url.pathname.match(/^\/api\/invites\/([\w-]+)$/);
@@ -253,6 +375,30 @@ export function createAppServer() {
         const e=getInvitationEnrollment(inviteMatch[1]);
         if(!e)return send(res,404,{error:'Invitation not found. Ask HYC for a new local invite.'});
         return send(res,200,publicEnrollment(e));
+      }
+      const customerSigningMatch = url.pathname.match(/^\/api\/invites\/([\w-]+)\/(signing|signature-status)$/);
+      if (customerSigningMatch && signWellConfig.mode === 'signwell-test') {
+        const e=getInvitationEnrollment(customerSigningMatch[1]); if(!e)return send(res,404,{error:'Invitation not found.'});
+        if(req.method==='POST'&&customerSigningMatch[2]==='signature-status'){
+          try { await refreshProviderStatus(e,provider); return send(res,200,publicEnrollment(e)); }
+          catch(error){return send(res,502,{error:error.message});}
+        }
+        if(req.method==='GET'&&customerSigningMatch[2]==='signing'){
+          if(!e.signWellDocumentId)return send(res,409,{error:'Review the synthetic agreement and issue it before opening signing.'});
+          try {
+            const {result}=await refreshProviderStatus(e,provider);
+            if(!SIGNABLE_PROVIDER_STATUSES.has(result.documentStatus)||result.customerSigned||!SIGNABLE_PROVIDER_STATUSES.has(result.customer))return send(res,409,{error:'The customer signing step is not currently available.'});
+            const signingUrl=e.signWellSigningUrls?.customer;
+            if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});
+            return send(res,200,{signingUrl});
+          } catch(error){return send(res,502,{error:error.message});}
+        }
+      }
+      const issueMatch=url.pathname.match(/^\/api\/invites\/([\w-]+)\/sign$/);
+      if(issueMatch&&req.method==='POST'&&signWellConfig.mode==='signwell-test'){
+        const e=getInvitationEnrollment(issueMatch[1]);if(!e)return send(res,404,{error:'Invitation not found.'});
+        try{await ensureProviderDocument(e,provider);return send(res,201,publicEnrollment(e));}
+        catch(error){return send(res,409,{error:error.message});}
       }
       const customerMatch = url.pathname.match(/^\/api\/invites\/([\w-]+)\/(questionnaire|plan|sign|payment)$/);
       if(customerMatch && req.method==='POST'){
@@ -266,25 +412,59 @@ export function createAppServer() {
           return send(res,200,publicEnrollment(e));
         } catch(error){return send(res,409,{error:error.message});}
       }
+      const adminSignMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)\/signwell\/(status|signing|decision|reconcile|pdf)$/);
+      if(adminSignMatch&&signWellConfig.mode==='signwell-test'){
+        const e=enrollments.get(adminSignMatch[1]);if(!e)return send(res,404,{error:'Enrollment not found.'});
+        const action=adminSignMatch[2];
+        if(req.method==='POST'&&action==='status'){
+          try{await refreshProviderStatus(e,provider);return send(res,200,publicEnrollment(e,{internal:true}));}catch(error){return send(res,502,{error:error.message});}
+        }
+        if(req.method==='GET'&&action==='signing'){
+          if(e.paymentStatus!=='succeeded'||e.hycDecision!=='review_pending'||e.signers.customer!=='provider_confirmed'||e.eligibilityReview==='review_required')return send(res,409,{error:'Customer signature, simulated payment, and any required eligibility review must be confirmed before HYC signing.'});
+          try{const {result}=await refreshProviderStatus(e,provider);if(!SIGNABLE_PROVIDER_STATUSES.has(result.documentStatus)||result.hycSigned||!SIGNABLE_PROVIDER_STATUSES.has(result.hyc))return send(res,409,{error:'Captain Will signing is not currently available.'});const signingUrl=e.signWellSigningUrls?.hyc;if(!validSigningUrl(signingUrl))return send(res,502,{error:'SignWell did not return an approved embedded signing link.'});return send(res,200,{signingUrl});}catch(error){return send(res,502,{error:error.message});}
+        }
+        if(req.method==='POST'&&action==='reconcile'){
+          try{
+            const body=await readBody(req);if(body.decision!=='accept')return send(res,409,{error:'Choose explicit manual acceptance after reviewing the provider evidence.'});
+            await refreshProviderStatus(e,provider);
+            if(!e.internalReconciliationRequired||e.internalReconciliationReason!=='captain_signature_before_internal_eligibility_approval'||e.hycDecision!=='review_pending'||e.paymentStatus!=='succeeded'||e.signers.customer!=='provider_confirmed'||e.signers.captainWill!=='provider_confirmed'||(Number(e.questionnaire?.value)>1_500_000&&!['reviewed_eligible','exception_approved'].includes(e.eligibilityReview)))return send(res,409,{error:'Manual reconciliation requires confirmed customer and Captain Will signatures, successful simulated payment, and any required internal eligibility disposition.'});
+            const next=structuredClone(e);next.internalReconciliationRequired=false;next.internalReconciliationReason=null;next.hycDecision='accepted';next.agreementStatus='fully_executed_test';next.enrollmentStatus='accepted_setup_pending';next.serviceReadiness='boat_binder_pending';next.updatedAt=new Date().toISOString();assertEnrollmentConsistency(next);Object.assign(e,next);return send(res,200,publicEnrollment(e,{internal:true}));
+          }catch(error){return send(res,409,{error:error.message});}
+        }
+        if(req.method==='POST'&&action==='decision'){
+          const body=await readBody(req);
+          if(body.decision==='decline'){
+            if(e.paymentStatus!=='succeeded'||e.hycDecision!=='review_pending')return send(res,409,{error:'Only an enrollment awaiting HYC review can be declined.'});
+            try{await refreshProviderStatus(e,provider);if(e.agreementStatus==='fully_executed_test')return send(res,409,{error:'The agreement is already fully executed in Test Mode.'});if(e.signWellDocumentId)await provider.deleteDocument(e.signWellDocumentId);e.hycDecision='declined';e.signers.captainWill='declined';e.paymentStatus='canceled_simulated';e.refundStatus='manual_refund_pending';e.enrollmentStatus='declined_refund_pending';e.agreementStatus='customer_signed';e.customerOutcomeNotice=null;e.signWellStatus='canceled';e.internalReconciliationRequired=false;e.internalReconciliationReason=null;e.updatedAt=new Date().toISOString();assertEnrollmentConsistency(e);return send(res,200,publicEnrollment(e,{internal:true}));}
+            catch(error){return send(res,502,{error:error.message});}
+          }
+          return send(res,409,{error:'HYC acceptance requires Captain Will to sign in the embedded SignWell session and provider status confirmation.'});
+        }
+        if(req.method==='GET'&&action==='pdf'){
+          try{const bytes=await retrieveCompletedPdf(e,provider);res.writeHead(200,{'content-type':'application/pdf','content-disposition':`attachment; filename="hyc-test-${e.id}.pdf"`,'cache-control':'no-store','x-content-type-options':'nosniff','x-hyc-sha256':e.signWellPdfSha256});return res.end(bytes);}catch(error){return send(res,409,{error:error.message});}
+        }
+      }
       const adminMatch=url.pathname.match(/^\/api\/admin\/enrollments\/([\w-]+)(?:\/(decision|readiness|eligibility))?$/);
       if(adminMatch){const e=enrollments.get(adminMatch[1]);if(!e)return send(res,404,{error:'Enrollment not found.'});
-        if(req.method==='GET'&&!adminMatch[2])return send(res,200,publicEnrollment(e));
-        if(req.method==='POST'&&adminMatch[2]==='decision'){const b=await readBody(req);try{decideEnrollment(e,b.decision);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
-        if(req.method==='POST'&&adminMatch[2]==='eligibility'){const b=await readBody(req);try{reviewEligibility(e,b.disposition);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
-        if(req.method==='POST'&&adminMatch[2]==='readiness'){const b=await readBody(req);try{updateReadiness(e,b.step,b.done);return send(res,200,publicEnrollment(e));}catch(error){return send(res,409,{error:error.message});}}
+        if(req.method==='GET'&&!adminMatch[2])return send(res,200,publicEnrollment(e,{internal:true}));
+        if(req.method==='POST'&&adminMatch[2]==='decision'){const b=await readBody(req);try{decideEnrollment(e,b.decision);return send(res,200,publicEnrollment(e,{internal:true}));}catch(error){return send(res,409,{error:error.message});}}
+        if(req.method==='POST'&&adminMatch[2]==='eligibility'){const b=await readBody(req);try{reviewEligibility(e,b.disposition);return send(res,200,publicEnrollment(e,{internal:true}));}catch(error){return send(res,409,{error:error.message});}}
+        if(req.method==='POST'&&adminMatch[2]==='readiness'){const b=await readBody(req);try{updateReadiness(e,b.step,b.done);return send(res,200,publicEnrollment(e,{internal:true}));}catch(error){return send(res,409,{error:error.message});}}
       }
       if(req.method==='GET'){
         const requested=url.pathname==='/customer.html'?'index.html':url.pathname==='/'?'index.html':url.pathname.slice(1);
         const clean=normalize(requested).replace(/^([/\\]|\.\.(?:[/\\]|$))+/, ''); const root=join(here,'public'); const path=join(root,clean);
         if(!path.startsWith(root))return send(res,403,{error:'Forbidden'});
-        try{const data=await readFile(path);const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};res.writeHead(200,{'content-type':types[extname(path)]||'application/octet-stream','cache-control':'no-store','content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'"});return res.end(data);}catch{return send(res,404,{error:'Not found'});}
+        try{const data=await readFile(path);const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};res.writeHead(200,{'content-type':types[extname(path)]||'application/octet-stream','cache-control':'no-store','content-security-policy':"default-src 'self'; script-src 'self' https://static.signwell.com; style-src 'self'; connect-src 'self' https://www.signwell.com https://static.signwell.com; frame-src https://www.signwell.com; frame-ancestors 'none'"});return res.end(data);}catch{return send(res,404,{error:'Not found'});}
       }
       return send(res,405,{error:'Method not allowed'});
     }catch(error){return send(res,error instanceof SyntaxError?400:500,{error:error instanceof SyntaxError?'Invalid request.':error.message});}
   });
 }
 
+function validSigningUrl(value){try{const u=new URL(value);return u.protocol==='https:'&&u.hostname==='www.signwell.com'&&u.pathname.startsWith('/docs/');}catch{return false;}}
+
 if(process.argv[1]===fileURLToPath(import.meta.url)){
-  const server=createAppServer();
-  server.listen(PORT,'127.0.0.1',()=>console.log(`HYC invited enrollment prototype at http://127.0.0.1:${PORT} (local mock mode)`));
+  try{const server=createAppServer();server.listen(PORT,'127.0.0.1',()=>console.log(`HYC invited enrollment prototype at http://127.0.0.1:${PORT} (${process.env.PROVIDER_MODE||'mock'} mode)`));}
+  catch(error){console.error(error.message);process.exitCode=1;}
 }

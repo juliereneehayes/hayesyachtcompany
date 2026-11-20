@@ -17,11 +17,8 @@ const sample = Object.freeze({
 export function providerMode(env = process.env) {
   const mode = env.PROVIDER_MODE || 'mock';
   if (mode === 'mock') return { mode, providerReady: false };
-  if (mode !== 'signwell-test') throw new Error('Unsupported PROVIDER_MODE. Use mock or signwell-test.');
-  if (!env.SIGNWELL_API_KEY || env.SIGNWELL_TEST_MODE !== 'true' || !env.SIGNWELL_TEMPLATE_ID) {
-    throw new Error('SignWell provider mode requires SIGNWELL_API_KEY, SIGNWELL_TEST_MODE=true, and SIGNWELL_TEMPLATE_ID. No provider request was made.');
-  }
-  return { mode, providerReady: true };
+  if (mode === 'signwell-test') throw new Error('The Phase 1 provider adapter is an unverified draft and is disabled. Use the Phase 3 provider path in prototype/signwell-phase2/. No provider request was made.');
+  throw new Error('Unsupported PROVIDER_MODE. Use mock.');
 }
 
 function json(res, status, value) {

@@ -9,3 +9,5 @@
 .workflow-status strong{color:var(--navy);font-size:.9rem}
 .workflow-status span{color:var(--muted);font-size:.8rem;line-height:1.45}
 .primary-status{margin:18px 0}
+.signwell-frame{min-height:360px;margin-top:18px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.signwell-frame #SignWell-Embedded-Iframe{display:block;width:100% !important;height:clamp(500px,80vh,700px) !important}

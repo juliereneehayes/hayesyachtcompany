@@ -4,10 +4,8 @@ import { applyMockOutcome, applyMockSignature, createMockDocument, localPdf, moc
 
 test('provider mode fails closed without explicit Test Mode settings', () => {
   assert.equal(providerMode({ PROVIDER_MODE: 'mock' }).mode, 'mock');
-  assert.throws(() => providerMode({ PROVIDER_MODE: 'signwell-test', SIGNWELL_API_KEY: 'test-key' }), /SIGNWELL_TEST_MODE=true/);
-  assert.throws(() => providerMode({ PROVIDER_MODE: 'signwell-test', SIGNWELL_TEST_MODE: 'true', SIGNWELL_TEMPLATE_ID: 'tpl' }), /SIGNWELL_API_KEY/);
-  assert.equal(providerMode({ PROVIDER_MODE: 'signwell-test', SIGNWELL_API_KEY: 'test-key', SIGNWELL_TEST_MODE: 'true', SIGNWELL_TEMPLATE_ID: 'tpl' }).providerReady, true);
-  assert.throws(() => providerMode({ PROVIDER_MODE: 'production' }), /Unsupported PROVIDER_MODE/);
+  assert.throws(() => providerMode({ PROVIDER_MODE: 'signwell-test', SIGNWELL_API_KEY: 'test-key', SIGNWELL_TEST_MODE: 'true', SIGNWELL_TEMPLATE_ID: 'tpl' }), /unverified draft and is disabled/);
+  assert.throws(() => providerMode({ PROVIDER_MODE: 'production' }), /Use mock/);
 });
 
 test('mock flow enforces owner then HYC order and labels completion simulated', () => {

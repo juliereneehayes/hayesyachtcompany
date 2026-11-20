@@ -1,0 +1,83 @@
+{
+  "notice": "Verified against the HYC synthetic SignWell Test Mode template by read-only Get Template on 2026-11-16. IDs are template-specific.",
+  "customer": {
+    "id": "1",
+    "placeholderId": "1",
+    "name": "Customer",
+    "signingOrder": 1
+  },
+  "hyc": {
+    "id": "2",
+    "placeholderId": "2",
+    "name": "Hyc Representative",
+    "signingOrder": 2
+  },
+  "fields": {
+    "owner_name": {
+      "apiId": "owner",
+      "label": "Owner"
+    },
+    "contracting_business": {
+      "apiId": "contracting_business",
+      "label": "Contracting business"
+    },
+    "signer_name": {
+      "apiId": "person_signing",
+      "label": "Person signing"
+    },
+    "owner_email": {
+      "apiId": "owner_email",
+      "label": "Owner email"
+    },
+    "vessel_name": {
+      "apiId": "vessel_name",
+      "label": "Vessel name"
+    },
+    "vessel_model": {
+      "apiId": "vessel_model",
+      "label": "Vessel model"
+    },
+    "vessel_length": {
+      "apiId": "vessel_length",
+      "label": "Vessel length"
+    },
+    "vessel_value": {
+      "apiId": "approximate_vessel_value",
+      "label": "Approximate vessel value"
+    },
+    "hin_or_registration": {
+      "apiId": "hin_or_registration",
+      "label": "HIN or registration"
+    },
+    "plan": {
+      "apiId": "plan",
+      "label": "Plan"
+    },
+    "visit_frequency": {
+      "apiId": "visit_frequency",
+      "label": "Visit frequency"
+    },
+    "billing_cadence": {
+      "apiId": "billing_cadence",
+      "label": "Billing cadence"
+    },
+    "price": {
+      "apiId": "simulated_price",
+      "label": "Simulated price"
+    }
+  },
+  "signatureFields": [
+    {
+      "placeholderName": "Customer",
+      "type": "signature",
+      "required": true,
+      "preSigned": false
+    },
+    {
+      "placeholderName": "Hyc Representative",
+      "type": "signature",
+      "required": true,
+      "preSigned": false
+    }
+  ]
+}
