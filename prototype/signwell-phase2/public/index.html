@@ -4,10 +4,10 @@
 <body>
 <header><a class="brand" href="/">HAYES YACHT COMPANY</a><span>INVITED ENROLLMENT · PHASE 2 PROTOTYPE</span></header>
 <main>
+  <div id="mode-notice" class="notice" role="status" aria-live="polite">MOCK MODE — synthetic enrollment only. No provider requests or email are sent. Payments are simulated; documents are not legally binding.</div>
   <section id="admin-view">
-    <p class="eyebrow">LOCAL CAPTAIN CONSOLE · MOCK MODE</p><h1>Enrollment review</h1>
-    <p class="lede">Create a local captain invitation, then review customer-signed and paid enrollments. No invitations are emailed. Copy the generated link to open it in another tab.</p>
-    <div class="notice">SIMULATION ONLY — no production SignWell, Stripe, email, or customer records.</div>
+    <p id="admin-mode-label" class="eyebrow">LOCAL CAPTAIN CONSOLE · MOCK MODE</p><h1>Enrollment review</h1>
+    <p class="lede">Create a local captain invitation, then review customer-signed and paid enrollments. Copy the generated link to open it in another tab.</p>
     <div class="toolbar"><button id="new-invite" class="primary">Create customer invitation</button><button id="refresh" class="secondary">Refresh enrollments</button></div>
     <p id="admin-message" class="message" aria-live="polite"></p>
     <section id="invite-result" class="card" hidden></section>
@@ -15,7 +15,7 @@
     <section id="review" class="card" hidden></section>
   </section>
   <section id="customer-view" hidden>
-    <p class="eyebrow">PRIVATE CAPTAIN INVITATION · LOCAL MOCK</p><h1>Welcome to Hayes Yacht Company</h1>
+    <p id="customer-mode-label" class="eyebrow">PRIVATE CAPTAIN INVITATION · LOCAL MOCK</p><h1>Welcome to Hayes Yacht Company</h1>
     <div class="notice">TEST ENROLLMENT — NOT A CUSTOMER CONTRACT. Do not enter real customer or credential information.</div>
     <div id="customer-alert" class="message" aria-live="polite"></div>
     <nav id="progress" class="progress" aria-label="Enrollment steps"></nav>

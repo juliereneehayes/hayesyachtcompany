@@ -125,7 +125,7 @@ test('Captain Review shows the internal gate and blocks countersigning until dis
   const mock=mockFetch();await withApp(mock,async base=>{const {token,id}=await issuedValue(base,'$1,600,000');mock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});
     const internal=await json(base,`/api/admin/enrollments/${id}`);assert.equal(internal.data.eligibilityReview,'review_required');
     assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,409);
-    const source=await (await import('node:fs/promises')).readFile(new URL('../public/app.js',import.meta.url),'utf8');assert.match(source,/Internal eligibility review required/);assert.match(source,/>Reviewed eligible</);assert.match(source,/>Exception approved</);
+    const source=await (await import('node:fs/promises')).readFile(new URL('../public/app.js',import.meta.url),'utf8');assert.match(source,/Internal eligibility review required/);assert.match(source,/Internal eligibility disposition recorded/);assert.match(source,/>Reviewed eligible</);assert.match(source,/>Exception approved</);
     const reviewed=await json(base,`/api/admin/enrollments/${id}/eligibility`,'POST',{disposition:'reviewed_eligible'});assert.equal(reviewed.data.eligibilityReview,'reviewed_eligible');
     assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/signing`)).status,200);
   });
@@ -140,8 +140,23 @@ test('customer signing accepts SignWell Pending document and in progress recipie
 
 test('customer signing distinguishes iframe load from agreement document load',async()=>{
   const app=await readFile(new URL('../public/app.js',import.meta.url),'utf8');
-  assert.match(app,/iframeLoaded:\(\)=>message\('signature-message','SignWell iframe loaded\. Waiting for the agreement…'\)/);
+  assert.match(app,/iframeLoaded:\(\)=>message\('signature-message','SignWell signing session opened\. Continue when the agreement is visible\.'\)/);
   assert.match(app,/documentLoaded:\(\)=>message\('signature-message','SignWell agreement loaded\.'\)/);
+});
+
+test('prototype labels, notices, payment confirmation, and PDF action match their current states',async()=>{
+  const [app,html]=await Promise.all([
+    readFile(new URL('../public/app.js',import.meta.url),'utf8'),
+    readFile(new URL('../public/index.html',import.meta.url),'utf8'),
+  ]);
+  assert.match(html,/id="admin-mode-label"/);assert.match(html,/id="customer-mode-label"/);assert.match(html,/id="mode-notice"/);
+  assert.match(app,/function applyModeCopy\(\).*SIGNWELL TEST MODE.*SignWell may attempt provider notifications.*No production signing or Stripe payments/s);
+  assert.match(app,/MOCK MODE.*No provider requests or email are sent.*Payments are simulated; documents are not legally binding/s);
+  assert.match(app,/appMode=config\.mode;applyModeCopy\(\)/);
+  assert.match(app,/Download completed test PDF/);assert.doesNotMatch(app,/Download completed test PDF \+ audit page/);
+  assert.match(app,/Your payment step is complete\. HYC review and Captain Will's countersignature are still pending\./);
+  assert.doesNotMatch(app,/Your customer enrollment is complete/);
+  assert.doesNotMatch(app,/function showCustomer\(\).*api\('\/api\/config'\)/);
 });
 
 test('customer and Captain Will SignWell iframes use scoped responsive sizing',async()=>{
@@ -247,7 +262,7 @@ test('ambiguous postpayment provider decline preserves payment and requires inte
   });
 });
 
-test('completed PDF waits for both provider signers and retrieves the audit page with bounded retry',async()=>{
+test('completed PDF waits for both provider signers and requests the audit page with bounded retry',async()=>{
   const mock=mockFetch({delayedPdf:true});await withApp(mock,async base=>{const {token,id}=await issued(base);mock.customer='completed';await json(base,`/api/invites/${token}/signature-status`,'POST',{});await json(base,`/api/invites/${token}/payment`,'POST',{outcome:'succeeded'});assert.equal((await json(base,`/api/admin/enrollments/${id}/signwell/pdf`)).status,409);mock.hyc='completed';mock.docStatus='completed';await json(base,`/api/admin/enrollments/${id}/signwell/status`,'POST',{});const pdf=await json(base,`/api/admin/enrollments/${id}/signwell/pdf`);assert.equal(pdf.status,200,JSON.stringify(pdf.data));assert.match(pdf.headers['x-hyc-sha256'],/^[a-f0-9]{64}$/);assert.equal(mock.pdfCalls,3);assert.ok(mock.calls.some(c=>c.path.includes('audit_page=true')));});
 });
 
